@@ -1,0 +1,14 @@
+# @package agent
+_target_: agent.discrete_gail.DiscreteGAILAgent
+name: discrete_gail
+device: ${device}
+algo: ${algo}
+num_actions: ${algo.num_actions} # to be specified later
+feature_dim: 50
+reward_mode: stored
+# representation: rl_encoder
+representation: discriminator
+disc_hidden_dim: 1024
+inverse_hidden_dims: [1024, 1024]
+inverse_spectral_norms: [false, false]
+task: ${suite.task}

@@ -1,0 +1,32 @@
+# @package algo
+_target_: algo.qrdqn.QRDQNAgent
+
+# Dim
+obs_shape: ??? # to be specified later
+num_actions: ??? # to be specified later
+num_quantiles: 200
+kappa: 1.0
+
+# Optimizer configs
+#lr: 0.0000625 # 1e-4
+lr: 5e-5
+adam_eps: 1e-2
+
+# Training Configs
+batch_size: 32
+update_every_steps: 4
+critic_target_update_every_steps: 10000
+eval_eps: 0.001
+train_eps_min: 0.01
+train_eps_decay_steps: 250000
+
+# Misc
+device: ${device}
+use_tb: ${use_tb}
+max_grad_norm:
+clip_reward: true
+nstep: 3
+obs_type: ${suite.obs_type}
+trunk_type: proj
+
+

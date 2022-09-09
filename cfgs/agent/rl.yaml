@@ -1,0 +1,7 @@
+# @package agent
+_target_: agent.rl.RLAgent
+name: rl
+device: ${device}
+algo: ${algo}
+task: ${suite.task}
+

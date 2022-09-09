@@ -1,0 +1,14 @@
+# @package agent
+_target_: agent.dac.DACAgent
+name: dac
+device: ${device}
+algo: ${algo}
+batch_size: 64 #${algo.batch_size}
+task: ${suite.task}
+expert_dir: /private/home/jdchang/state-il/expert_demos/
+num_demos: 10
+feature_dim: 50
+reward_mode: offline_imitation
+representation: discriminator
+disc_hidden_dim: 1024
+disc_type: ss
