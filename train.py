@@ -2,6 +2,7 @@ import warnings
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
+import datetime
 
 import os
 from pathlib import Path
@@ -16,7 +17,7 @@ from replay_buffer import ReplayWrapper, make_expert_replay_loader
 from video import VideoRecorder
 
 from time import time
-
+import wandb
 
 os.environ["MKL_SERVICE_FORCE_INTEL"] = "1"
 os.environ["MUJOCO_GL"] = "egl"
@@ -35,7 +36,6 @@ class Workspace:
         utils.set_seed_everywhere(cfg.seed)
         self.device = torch.device(cfg.device)
         self.setup()
-
         self.agent = hydra.utils.instantiate(cfg.agent)
         if cfg.load_checkpoint:
             chkpt = (
@@ -50,7 +50,42 @@ class Workspace:
         self._global_step = 0
         self._global_episode = 0
         self._best_eval_return = -float("inf")
-
+        # # ///
+        # print("test part")
+        # self.eval_env = hydra.utils.call(self.cfg.suite.task_make_fn_eval)
+        # time_step = self.eval_env.reset()
+        # with torch.no_grad():
+        #     action = self.agent.act(time_step.observation, self.global_step, eval_mode=True)
+        # print(action.shape)
+        # for i in range(10):
+        #     time_step = self.train_env.reset()
+        #     time_steps = [time_step]
+        #     metrics = None
+        #     t0 = time()
+        #     for ts in time_steps:
+        #         self.buffer.add(ts)
+        # r_iter = iter(self.buffer.replay_buffer)
+        # batch = next(r_iter)
+        # batch = utils.to_torch(batch, self.device)
+        # print("test", len(self.buffer.replay_buffer))
+        # print(batch[0][0])
+        # print("check len", len(next(expert_iter)))
+        # print("check len", next(expert_iter)[0].shape)
+        # expert_obs, actions, expert_obs_next = next(expert_iter)
+        # for i in range(10):
+        # self.agent.update(self.train_env, self.buffer, self.replay_iter, self.expert_loader, self.expert_iter, self.global_step)
+        # demos_path = (
+        #         self.cfg.agent.expert_dir + self.cfg.suite.task + "_10.pkl"
+        #     )
+        # expert_loader = make_expert_replay_loader(
+        #         demos_path, self.cfg.agent.num_demos, self.cfg.agent.batch_size
+        #     )
+        # self.expert_iter = iter(expert_loader)
+        # sample = expert_loader.dataset._sample_episode()
+        # sample = utils.to_torch(sample["observation"], self.device)
+        # print(torch.stack(list(sample), dim=0).shape)
+        # exit()
+        # # ///
     def setup(self):
 
         # create logger/video recorder
@@ -102,12 +137,12 @@ class Workspace:
         # Map loader rather than iterable since we would want all
         if self.cfg.agent.name == "dac":
             demos_path = (
-                self.cfg.agent.expert_dir + self.cfg.suite.task + "/expert_demos.pkl"
+                self.cfg.agent.expert_dir + self.cfg.suite.task + "_10.pkl"
             )
-            expert_loader = make_expert_replay_loader(
+            self.expert_loader = make_expert_replay_loader(
                 demos_path, self.cfg.agent.num_demos, self.cfg.agent.batch_size
             )
-            self.expert_iter = iter(expert_loader)
+            self.expert_iter = iter(self.expert_loader)
         self._replay_iter = None
 
     @property
@@ -135,26 +170,51 @@ class Workspace:
     # TODO: is it worth doing multiprocessing? use ray implementation
     def eval(self):
         step, episode, total_reward = 0, 0, 0
-
+        states = list()
+        actions = list()
+        next_states = list()
+        time_list = list()
         while episode < self.cfg.suite.num_eval_episodes:
             time_step = self.eval_env.reset()
-            self.video.init(self.eval_env, enabled=True)  # NOTE: for every?
+            # self.video.init(self.eval_env, enabled=True)  #1 NOTE: for every?
             ep_rew = 0
+            
+            # add/////////////
+            traj_states = list()
+            traj_actions = list()
+            traj_next_states = list()
+            traj_time = list()
+            # add/////////////
             while not time_step.last():
+                traj_time.append(time_step)
+                traj_states.append(np.array(time_step.observation))
                 with torch.no_grad(), utils.eval_mode(self.agent.policy):
                     action = self.agent.act(
                         time_step.observation, self.global_step, eval_mode=True
                     )
                 time_step = self.eval_env.step(action)
-                self.video.record(self.eval_env)
+                
+                # add/////////////
+
+                traj_next_states.append(np.array(time_step.observation))
+                traj_actions.append(np.array([action]))
+                # add/////////////
+                
+                # self.video.record(self.eval_env)
                 ep_rew += time_step.reward
                 step += 1
+            # add/////////////
+            states.append(np.array(traj_states))
+            time_list.append(traj_time)
+            actions.append(np.squeeze(np.array(traj_actions),axis = 1))
+            next_states.append(np.array(traj_next_states))
+            # add/////////////
             total_reward += ep_rew
             episode += 1
-            self.video.save(f"{self.global_frame}_{ep_rew}.mp4")
+            # self.video.save(f"{self.global_frame}_{ep_rew}.mp4")
 
-        if self.cfg.algo.use_idm:
-            idm_acc = self.agent.policy.eval_idm()
+        # if self.cfg.algo.use_idm:
+        #     idm_acc = self.agent.policy.eval_idm()
 
         with self.logger.log_and_dump_ctx(self.global_frame, ty="eval") as log:
             log("episode_return", total_reward / episode)
@@ -162,16 +222,18 @@ class Workspace:
             log("episode", self.global_episode)
             log("step", self.global_step)
             log("total_time", self.timer.total_time())
-            if self.cfg.algo.use_idm:
-                log("idm_acc", idm_acc)
+            # if self.cfg.algo.use_idm:
+            #     log("idm_acc", idm_acc)
 
-        return total_reward / episode
+        return total_reward / episode, (np.array(states), np.array(actions), np.array(next_states))
 
     def train(self):
         episode_step, episode_reward = 0, 0
         time_step = self.train_env.reset()
         time_steps = [time_step]
         metrics = None
+        eval_counter = 0
+        divergence = 0
         # while self.global_step < self.cfg.suite.num_train_steps:
         for _ in range(self.cfg.suite.num_train_steps):
             if time_step.last():
@@ -204,6 +266,13 @@ class Workspace:
                         log("step", self.global_step)
                         if repr(self.agent) == "offline_imitation":
                             log("episode_imitation_return", imitation_return)
+                    wandb.log(
+                        {"train/fps":episode_frame / elapsed_time,
+                        "train/total_time":total_time,
+                        "train/episode_reward":episode_reward,
+                        "train/episode_length":episode_frame,
+                        "train/episode": self.global_episode,
+                        "train/global_step":self.global_step})
                     # print(f'Populating Metric: {time() - t0}')
 
                 # reset env
@@ -218,11 +287,13 @@ class Workspace:
 
             # Eval
             if self.global_step % self.cfg.suite.eval_every_steps == 0:
-                eval_return = self.eval()
+                eval_return, on_policy_data = self.eval()
                 if eval_return > self.best_eval_return:
                     ret = int(eval_return)
                     self.save_snapshot(f"{ret}_snapshot.pt")
-
+                on_policy_data = utils.to_torch(on_policy_data, self.device)
+                divergence = self.agent.compute_divergence(self.expert_loader, on_policy_data)
+                eval_counter += 1
             t0 = time()
             with torch.no_grad(), utils.eval_mode(self.agent.policy):
                 action = self.agent.act(
@@ -235,20 +306,23 @@ class Workspace:
             t0 = time()
             if self.global_step >= self.cfg.suite.num_seed_steps:
                 # ======== UPDATE IDM =========
-                for _ in range(self.cfg.idm_iter):
-                    batch = next(self.replay_iter)
-                    batch = utils.to_torch(batch, self.device)
-                    self.agent.policy.update_idm(batch)
+                # for _ in range(self.cfg.idm_iter):
+                #     batch = next(self.replay_iter)
+                #     batch = utils.to_torch(batch, self.device)
+                #     self.agent.policy.update_idm(batch)
 
                 # =============================
 
                 if self.cfg.agent.name == "dac":
                     metrics = self.agent.update(
-                        self.replay_iter, self.expert_iter, self.global_step
+                        self.eval_env, self.buffer, self.replay_iter, self.expert_loader, self.expert_iter, self.global_step
                     )
                 else:
                     metrics = self.agent.update(self.replay_iter, self.global_step)
+                metrics["eval/custom_step"] = eval_counter
+                metrics["eval/divergence"] = divergence
                 self.logger.log_metrics(metrics, self.global_frame, ty="train")
+                wandb.log(metrics)
                 # print(f'update: {time()-t0}')
 
             # Env Step
@@ -291,11 +365,23 @@ class Workspace:
 @hydra.main(version_base=None, config_path="./cfgs", config_name="config")
 def main(cfg):
     w = Workspace(cfg)
+    project_name = "Ranking-IL"
+    entity = "kaiwenw_rep_offline_rl"
+    ts = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
+    name = f"{ts}"
     snapshot = w.work_dir / "snapshot.pt"
     if snapshot.exists():
         print(f"resuming: {snapshot}")
         w.load_snapshot()
-    w.train()
+    if cfg.wandb:
+        with wandb.init(project=project_name, entity=entity, name=name) as run:
+            wandb.define_metric("eval/custom_step")
+            wandb.define_metric("eval/*", step_metric='eval/custom_step')
+            wandb.define_metric("train/global_step")
+            wandb.define_metric("train/*", step_metric="train/global_step")
+            w.train()
+    else:
+        w.train()
 
 
 if __name__ == "__main__":

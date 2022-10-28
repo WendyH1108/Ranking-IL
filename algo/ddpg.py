@@ -45,6 +45,7 @@ class DDPGAgent:
         self.lr = lr
         self.obs_shape = obs_shape
         self.action_dim = action_dim
+        self.internal_step = 0
         # needed by GAIL
         self.batch_size = batch_size
         # models
@@ -103,7 +104,7 @@ class DDPGAgent:
 
     def act(self, obs, step, eval_mode):
         obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
-        stddev = utils.schedule(self.stddev_schedule, step)
+        stddev = utils.schedule(self.stddev_schedule, self.internal_step)
         h = self.encoder(obs)
         dist = self.actor(h, stddev)
         if eval_mode:
@@ -118,7 +119,7 @@ class DDPGAgent:
         metrics = dict()
 
         with torch.no_grad():
-            stddev = utils.schedule(self.stddev_schedule, step)
+            stddev = utils.schedule(self.stddev_schedule, self.internal_step)
             dist = self.actor(next_obs, stddev)
             next_action = dist.sample(clip=self.stddev_clip)
             target_Q1, target_Q2 = self.critic_target(next_obs, next_action)
@@ -149,7 +150,7 @@ class DDPGAgent:
 
         utils.set_requires_grad(self.critic, False)
 
-        stddev = utils.schedule(self.stddev_schedule, step)
+        stddev = utils.schedule(self.stddev_schedule, self.internal_step)
         dist = self.actor(obs, stddev)
         action = dist.sample(clip=self.stddev_clip)
         log_prob = dist.log_prob(action).sum(-1, keepdim=True)
@@ -177,8 +178,8 @@ class DDPGAgent:
 
         metrics = dict()
 
-        if step % self.update_every_steps != 0:
-            return metrics
+        # if step % self.update_every_steps != 0:
+        #     return metrics
 
         obs = self.aug_and_encode(obs)
         with torch.no_grad():
@@ -206,3 +207,5 @@ class DDPGAgent:
     def aug_and_encode(self, obs):
         obs = self.aug(obs)
         return self.encoder(obs)
+    def reset_step(self):
+        self.internal_step = 0
