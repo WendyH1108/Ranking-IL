@@ -3,7 +3,7 @@ defaults:
   - algo: dqn
   - agent: rl
   - suite: atari
-  - override hydra/launcher: submitit_local
+  #- override hydra/launcher: submitit_local
 
 # Experiment name
 experiment: training_expert_atari
@@ -15,6 +15,7 @@ save_video: true
 save_train_video: false
 use_tb: false
 use_amp: false
+wandb: true
 
 # replay buffer
 replay_buffer_size: ${suite.num_train_steps}
@@ -50,14 +51,14 @@ hydra:
   sweep:
     dir: ./exp/${now:%Y.%m.%d}/${now:%H%M}_${experiment}
     subdir: ${hydra.job.num}
-  launcher:
-    timeout_min: 4300
-    cpus_per_task: 10
-    gpus_per_node: 1
-    tasks_per_node: 1
-    mem_gb: 160
-    nodes: 1
-    submitit_folder: ./exp/${now:%Y.%m.%d}/${now:%H%M%S}_${experiment}/.slurm
+  # launcher:
+  #   timeout_min: 4300
+  #   cpus_per_task: 10
+  #   gpus_per_node: 1
+  #   tasks_per_node: 1
+  #   mem_gb: 100
+  #   nodes: 1
+    # submitit_folder: ./exp/${now:%Y.%m.%d}/${now:%H%M%S}_${experiment}/.slurm
   job:
     chdir: true # previous behavior
     name: ${experiment}

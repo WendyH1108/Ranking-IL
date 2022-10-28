@@ -14,7 +14,7 @@ COMMON_TRAIN_FORMAT = [
     ("episode_return", "R", "float"),
     ("episode_imitation_return", "Ri", "float"),
     ("fps", "FPS", "float"),
-    ("total_time", "T", "time"),
+    ("total_time", "T", "time"),    
 ]
 
 COMMON_EVAL_FORMAT = [

@@ -454,7 +454,10 @@ class ExpertReplayBuffer(IterableDataset):
         # Load Expert Demos
         with open(dataset_path, "rb") as f:
             data = pkl.load(f)
-            obs, act = data[0], data[-2]
+            # obs, act = data[0], data[-2]
+            obs, act = np.array(data["states"]), np.array(data["actions"])
+        self.obs = obs
+        self.act = act
         self._episodes = []
         for i in range(num_demos):
             episode = dict(observation=obs[i], action=act[i])
@@ -470,12 +473,12 @@ class ExpertReplayBuffer(IterableDataset):
         idx = np.random.randint(0, episode_len(episode)) + 1
         obs = episode["observation"][idx]
         action = episode["action"][idx]
-
+        # if len(action.shape) == 3:
+        #     action = np.squeeze(action, axis=1)
         if idx == len(episode["observation"]) - 1:
             next_obs = np.zeros_like(episode["observation"][0])
         else:
             next_obs = episode["observation"][idx + 1]
-
         return (obs, action, next_obs)
 
     def __iter__(self):
@@ -527,3 +530,20 @@ def make_replay_loader(
         worker_init_fn=_worker_init_fn,
     )
     return loader
+
+# if __name__ == '__main__':
+    # pass
+    # demos_path = "/home/yh374/Ranking-IL/expert_v2/cheetah_run_10.pkl"
+    # num_demos = 10
+    # batch_size = 2
+    # expert_loader = make_expert_replay_loader(
+    #             demos_path, num_demos,batch_size)
+    # print("pass loader")
+
+    # expert_iter = iter(expert_loader)
+
+    # # print(next(expert_iter))
+    # expert_obs, actions, expert_obs_next = next(expert_iter)
+    # print("expert_obs", expert_obs.shape)
+    # print("actions",actions.shape)
+    # print("expert_obs_next",expert_obs_next.shape)

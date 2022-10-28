@@ -197,7 +197,9 @@ class DiscreteGAILAgent(Agent):
         dac_loss = F.binary_cross_entropy_with_logits(
             disc_output, disc_label, reduction="mean"
         )
+        # discriminator_loss = torch.mean(self.discriminator(expert_data)) - torch.mean(self.discriminator(policy_data))
 
+        
         # expert_data, policy_data = torch.split(disc_input, half_batch_size, dim=0)
 
         grad_pen = utils.compute_gradient_penalty(

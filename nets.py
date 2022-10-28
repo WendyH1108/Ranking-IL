@@ -395,7 +395,7 @@ class QRDQNCritic(nn.Module):
 class Discriminator(nn.Module):
     def __init__(
         self,
-        input_dim,
+        input_dim, # (s, a) |s| + |a| (i.e. 30)
         hidden_dim,
         enc_input_dim=None,
         enc_output_dim=None,
@@ -428,10 +428,15 @@ class Discriminator(nn.Module):
     def encode(self, obs):
         return self.encoder_trunk(self.encoder(obs))
 
-    def forward(self, obs, encode=False):
+    def forward(self, obs, next_obs=None, act=None, encode=False):
         if encode:
             obs = self.encode(obs)
-        return self.trunk(obs)
+        if not act:
+            h = obs
+        else:
+            h = torch.cat([obs, act], dim=1)
+
+        return self.trunk(h)
 
 
 class InverseDynamicsModel(nn.Module):

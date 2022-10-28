@@ -7,10 +7,15 @@ import utils
 import pickle as pkl
 from pathlib import Path
 from video import VideoRecorder
-from snapshot_paths import snapshots
+#import argparse
+
+# from snapshot_paths import snapshots
 from collections import defaultdict
 
 import yaml
+
+snapshots={"cheetah_run":"/home/yh374/Ranking-IL/exp/2022.09.19/1517_cheetah_ddpg/0",
+"walker_walk": "/home/yh374/Ranking-IL/exp/2022.09.16/1535_test/0"}
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 torch.backends.cudnn.benchmark = True
@@ -19,8 +24,11 @@ os.environ["MKL_SERVICE_FORCE_INTEL"] = "1"
 os.environ["MUJOCO_GL"] = "egl"
 
 
-@hydra.main(config_path="cfgs", config_name="config_gen")
+@hydra.main(version_base=None, config_path="cfgs", config_name="config_gen")
 def main(cfg):
+    #parser = argparse.ArgumentParser()
+    #args = parser.parse_args()
+
     work_dir = Path.cwd()
     print(f"workspace: {work_dir}")
 
@@ -35,7 +43,9 @@ def main(cfg):
     env_dir = save_dir / cfg.suite.task
     env_dir.mkdir(parents=True, exist_ok=True)
     video = VideoRecorder(env_dir if cfg.save_video else None)
-
+    
+    # need to change !!!!
+    print(cfg.suite.task)
     snapshot = snapshots[cfg.suite.task] + "/snapshot.pt"
     print(snapshot)
 
