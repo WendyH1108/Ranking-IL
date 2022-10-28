@@ -249,9 +249,9 @@ class BoostingAgent(Agent):
         # Policy Update
         for _ in range(self.policy_iter):
             online_iter = self.online_sample()
-            batch = next(online_iter)
-            batch = utils.to_torch(batch, self.device)
-            metrics.update(self.policy.update(batch, step))
+            online_batch = next(online_iter)
+            online_batch = utils.to_torch(online_batch, self.device)
+            metrics.update(self.policy.update(online_batch, step))
         
         return metrics
     

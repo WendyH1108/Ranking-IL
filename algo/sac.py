@@ -34,7 +34,7 @@ class SACAgent:
                                     critic_spectral_norms).to(device)
         self.critic_target = DoubleQCritic(obs_type, obs_shape[0], action_dim, feature_dim, critic_hidden_dims, critic_spectral_norms).to(device)
         self.critic_target.load_state_dict(self.critic.state_dict())
-
+        self.init_temperature = -np.prod(action_dim)
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
         self.log_alpha.requires_grad = True
         # set target entropy to -|A|
