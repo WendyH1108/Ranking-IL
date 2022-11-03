@@ -86,6 +86,7 @@ class Workspace:
         # print(torch.stack(list(sample), dim=0).shape)
         # exit()
         # # ///
+
     def setup(self):
 
         # create logger/video recorder
@@ -136,9 +137,7 @@ class Workspace:
         # TODO: set flags to turn on and off for pixels/state/rl vs il etc....
         # Map loader rather than iterable since we would want all
         if self.cfg.agent.name == "dac":
-            demos_path = (
-                self.cfg.agent.expert_dir + self.cfg.suite.task + "_10.pkl"
-            )
+            demos_path = self.cfg.agent.expert_dir + self.cfg.suite.task + "_10.pkl"
             self.expert_loader = make_expert_replay_loader(
                 demos_path, self.cfg.agent.num_demos, self.cfg.agent.batch_size
             )
@@ -178,7 +177,7 @@ class Workspace:
             time_step = self.eval_env.reset()
             # self.video.init(self.eval_env, enabled=True)  #1 NOTE: for every?
             ep_rew = 0
-            
+
             # add/////////////
             traj_states = list()
             traj_actions = list()
@@ -193,20 +192,20 @@ class Workspace:
                         time_step.observation, self.global_step, eval_mode=True
                     )
                 time_step = self.eval_env.step(action)
-                
+
                 # add/////////////
 
                 traj_next_states.append(np.array(time_step.observation))
                 traj_actions.append(np.array([action]))
                 # add/////////////
-                
+
                 # self.video.record(self.eval_env)
                 ep_rew += time_step.reward
                 step += 1
             # add/////////////
             states.append(np.array(traj_states))
             time_list.append(traj_time)
-            actions.append(np.squeeze(np.array(traj_actions),axis = 1))
+            actions.append(np.squeeze(np.array(traj_actions), axis=1))
             next_states.append(np.array(traj_next_states))
             # add/////////////
             total_reward += ep_rew
@@ -225,7 +224,11 @@ class Workspace:
             # if self.cfg.algo.use_idm:
             #     log("idm_acc", idm_acc)
 
-        return total_reward / episode, (np.array(states), np.array(actions), np.array(next_states))
+        return total_reward / episode, (
+            np.array(states),
+            np.array(actions),
+            np.array(next_states),
+        )
 
     def train(self):
         episode_step, episode_reward = 0, 0
@@ -267,12 +270,15 @@ class Workspace:
                         if repr(self.agent) == "offline_imitation":
                             log("episode_imitation_return", imitation_return)
                     wandb.log(
-                        {"train/fps":episode_frame / elapsed_time,
-                        "train/total_time":total_time,
-                        "train/episode_reward":episode_reward,
-                        "train/episode_length":episode_frame,
-                        "train/episode": self.global_episode,
-                        "train/global_step":self.global_step})
+                        {
+                            "train/fps": episode_frame / elapsed_time,
+                            "train/total_time": total_time,
+                            "train/episode_reward": episode_reward,
+                            "train/episode_length": episode_frame,
+                            "train/episode": self.global_episode,
+                            "train/global_step": self.global_step,
+                        }
+                    )
                     # print(f'Populating Metric: {time() - t0}')
 
                 # reset env
@@ -292,7 +298,9 @@ class Workspace:
                     ret = int(eval_return)
                     self.save_snapshot(f"{ret}_snapshot.pt")
                 on_policy_data = utils.to_torch(on_policy_data, self.device)
-                divergence = self.agent.compute_divergence(self.expert_loader, on_policy_data)
+                divergence = self.agent.compute_divergence(
+                    self.expert_loader, on_policy_data
+                )
                 eval_counter += 1
             t0 = time()
             with torch.no_grad(), utils.eval_mode(self.agent.policy):
@@ -315,7 +323,12 @@ class Workspace:
 
                 if self.cfg.agent.name == "dac":
                     metrics = self.agent.update(
-                        self.eval_env, self.buffer, self.replay_iter, self.expert_loader, self.expert_iter, self.global_step
+                        self.eval_env,
+                        self.buffer,
+                        self.replay_iter,
+                        self.expert_loader,
+                        self.expert_iter,
+                        self.global_step,
                     )
                 else:
                     metrics = self.agent.update(self.replay_iter, self.global_step)
@@ -376,7 +389,7 @@ def main(cfg):
     if cfg.wandb:
         with wandb.init(project=project_name, entity=entity, name=name) as run:
             wandb.define_metric("eval/custom_step")
-            wandb.define_metric("eval/*", step_metric='eval/custom_step')
+            wandb.define_metric("eval/*", step_metric="eval/custom_step")
             wandb.define_metric("train/global_step")
             wandb.define_metric("train/*", step_metric="train/global_step")
             w.train()
