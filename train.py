@@ -13,7 +13,7 @@ from dm_env import specs
 
 import utils
 from logger import Logger
-from replay_buffer import ReplayWrapper, make_expert_replay_loader
+from replay_buffer import ReplayWrapper, make_expert_replay_loader, ReplayBufferMemory
 from video import VideoRecorder
 
 from time import time
@@ -125,23 +125,42 @@ class Workspace:
         )
 
         # TODO: Better cfg logic for return one step
-        self.buffer = ReplayWrapper(
-            self.train_env,
-            data_specs,
-            self.work_dir,
-            self.cfg,
-            buffer_name="buffer",
-            return_one_step=self.cfg.return_one_step,
+        # self.buffer = ReplayWrapper(
+        #     self.train_env,
+        #     data_specs,
+        #     self.work_dir,
+        #     self.cfg,
+        #     buffer_name="buffer",
+        #     return_one_step=self.cfg.return_one_step,
+        # )
+        self.buffer = ReplayBufferMemory(
+            specs=data_specs,
+            max_size=self.cfg.replay_buffer_size,
+            batch_size=self.cfg.batch_size,
+            nstep=self.cfg.nstep,  # only works for 1 for now.....
+            discount=self.cfg.discount,
         )
 
         # TODO: set flags to turn on and off for pixels/state/rl vs il etc....
         # Map loader rather than iterable since we would want all
-        if self.cfg.agent.name == "dac":
+        if self.cfg.agent.name == "dac" or self.cfg.agent.name == "boosting":
             demos_path = self.cfg.agent.expert_dir + self.cfg.suite.task + "_10.pkl"
             self.expert_loader = make_expert_replay_loader(
                 demos_path, self.cfg.agent.num_demos, self.cfg.agent.batch_size
             )
             self.expert_iter = iter(self.expert_loader)
+
+        if self.cfg.agent.name == "boosting":
+            self.disc_buffer = ReplayBufferMemory(
+                specs=data_specs,
+                max_size=self.cfg.replay_buffer_size,
+                batch_size=self.cfg.batch_size,
+                nstep=self.cfg.nstep,
+                discount=self.cfg.discount,
+                eta=self.cfg.agent.eta,
+                n_samples=self.cfg.agent.n_samples,
+            )
+            self._disc_replay_iter = None
         self._replay_iter = None
 
     @property
@@ -163,10 +182,36 @@ class Workspace:
     @property
     def replay_iter(self):
         if self._replay_iter is None:
-            self._replay_iter = iter(self.buffer.replay_buffer)
+            # self._replay_iter = iter(self.buffer.replay_buffer)
+            self._replay_iter = iter(self.buffer)
         return self._replay_iter
 
-    # TODO: is it worth doing multiprocessing? use ray implementation
+    @property
+    def disc_replay_iter(self):
+        if self._disc_replay_iter is None:
+            self._disc_replay_iter = iter(self.disc_buffer)
+        return self._disc_replay_iter
+
+    # TODO: Figure out subsampling......
+    def collect_samples(self):
+        episode = 0
+        while episode < self.cfg.agent.n_sample_episodes:
+            time_step = self.eval_env.reset()
+            time_steps = [time_step]
+
+            while not time_step.last():
+                with torch.no_grad(), utils.eval_mode(self.agent.policy):
+                    action = self.agent.act(
+                        time_step.observation, self.global_step, eval_mode=False
+                    )
+                time_step = self.eval_env.step(action)
+                time_steps.append(time_step)
+
+            episode += 1
+
+            for ts in time_steps:
+                self.disc_buffer.add(ts)
+
     def eval(self):
         step, episode, total_reward = 0, 0, 0
         states = list()
@@ -212,17 +257,12 @@ class Workspace:
             episode += 1
             # self.video.save(f"{self.global_frame}_{ep_rew}.mp4")
 
-        # if self.cfg.algo.use_idm:
-        #     idm_acc = self.agent.policy.eval_idm()
-
         with self.logger.log_and_dump_ctx(self.global_frame, ty="eval") as log:
             log("episode_return", total_reward / episode)
             log("episode_length", step * self.cfg.suite.action_repeat / episode)
             log("episode", self.global_episode)
             log("step", self.global_step)
             log("total_time", self.timer.total_time())
-            # if self.cfg.algo.use_idm:
-            #     log("idm_acc", idm_acc)
 
         return total_reward / episode, (
             np.array(states),
@@ -247,13 +287,10 @@ class Workspace:
                     )
 
                 # Add to buffer
-                t0 = time()
                 for ts in time_steps:
                     self.buffer.add(ts)
-                # print(f'Filling Buffer: {time() - t0}')
 
                 self._global_episode += 1
-                t0 = time()
                 if metrics is not None:
                     # log stats
                     elapsed_time, total_time = self.timer.reset()
@@ -267,8 +304,8 @@ class Workspace:
                         log("episode_length", episode_frame)
                         log("episode", self.global_episode)
                         log("step", self.global_step)
-                        if repr(self.agent) == "offline_imitation":
-                            log("episode_imitation_return", imitation_return)
+                        # if repr(self.agent) == "offline_imitation":
+                        #     log("episode_imitation_return", imitation_return)
                     wandb.log(
                         {
                             "train/fps": episode_frame / elapsed_time,
@@ -279,7 +316,6 @@ class Workspace:
                             "train/global_step": self.global_step,
                         }
                     )
-                    # print(f'Populating Metric: {time() - t0}')
 
                 # reset env
                 time_step = self.train_env.reset()
@@ -294,32 +330,40 @@ class Workspace:
             # Eval
             if self.global_step % self.cfg.suite.eval_every_steps == 0:
                 eval_return, on_policy_data = self.eval()
-                if eval_return > self.best_eval_return:
-                    ret = int(eval_return)
-                    self.save_snapshot(f"{ret}_snapshot.pt")
+                # if eval_return > self.best_eval_return:
+                #     ret = int(eval_return)
+                #     self.save_snapshot(f"{ret}_snapshot.pt")
                 on_policy_data = utils.to_torch(on_policy_data, self.device)
                 divergence = self.agent.compute_divergence(
                     self.expert_loader, on_policy_data
                 )
                 eval_counter += 1
-            t0 = time()
+
+            # ========== BOOSTING ==========
+            if (
+                self.cfg.agent.name == "boosting"
+                and self.global_step % self.cfg.policy_iter
+            ):
+                # Add Samples
+                self.collect_samples()
+                # Update Disc
+                disc_metrics = self.agent.update_discriminator(self.disc_replay_iter)
+
+                # Reset Policy
+                if self.cfg.agent.reset_policy:
+                    self.agent.reset_policy()
+
+                # Reset Buffer
+                self.buffer.load_buffer(*self.disc_buffer.get_buffer())
+                self._replay_iter = None
+
             with torch.no_grad(), utils.eval_mode(self.agent.policy):
                 action = self.agent.act(
                     time_step.observation, self.global_step, eval_mode=False
                 )
-            # if self.global_step >= self.cfg.suite.num_seed_steps:
-            # print(f'act: {time()-t0}')
 
             # Update Agent
-            t0 = time()
             if self.global_step >= self.cfg.suite.num_seed_steps:
-                # ======== UPDATE IDM =========
-                # for _ in range(self.cfg.idm_iter):
-                #     batch = next(self.replay_iter)
-                #     batch = utils.to_torch(batch, self.device)
-                #     self.agent.policy.update_idm(batch)
-
-                # =============================
 
                 if self.cfg.agent.name == "dac":
                     metrics = self.agent.update(
@@ -332,21 +376,18 @@ class Workspace:
                     )
                 else:
                     metrics = self.agent.update(self.replay_iter, self.global_step)
+
                 metrics["eval/custom_step"] = eval_counter
                 metrics["eval/divergence"] = divergence
                 self.logger.log_metrics(metrics, self.global_frame, ty="train")
                 wandb.log(metrics)
-                # print(f'update: {time()-t0}')
 
             # Env Step
-            t0 = time()
             time_step = self.train_env.step(action)
-            # print(f'env step: {time()-t0}')
             time_steps.append(time_step)
             episode_reward += time_step.reward
             episode_step += 1
             self._global_step += 1
-            # print(f'Iteration Time: {loop_end - loop_start}')
 
     def save_snapshot(self, name="snapshot.pt"):
         snapshot = self.work_dir / name
