@@ -389,6 +389,7 @@ class ReplayBufferMemory:
             return self._weights
 
         self._weights[self._idx - self._n_samples : self._idx] = new_weights
+        self._weights[self._idx : self._idx + self._n_samples] /= self._eta
         return self._weights
 
     def get_buffer(self):
