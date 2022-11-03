@@ -34,8 +34,8 @@ class SACAgent:
                                     critic_spectral_norms).to(device)
         self.critic_target = DoubleQCritic(obs_type, obs_shape[0], action_dim, feature_dim, critic_hidden_dims, critic_spectral_norms).to(device)
         self.critic_target.load_state_dict(self.critic.state_dict())
-        self.init_temperature = -np.prod(action_dim)
-        self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
+        self.init_temperature = init_temperature
+        self.log_alpha = torch.tensor(init_temperature, dtype= torch.float64).to(device)
         self.log_alpha.requires_grad = True
         # set target entropy to -|A|
         self.target_entropy = -action_dim
@@ -95,7 +95,11 @@ class SACAgent:
         self.critic_opt.step()
 
         return metrics
-
+    
+    def reset_noise(self):
+        self.log_alpha = torch.tensor(self.init_temperature, dtype= torch.float64).to(device)
+        self.alpha_opt = torch.optim.Adam([self.log_alpha], lr=self.lr)
+    
     def update_actor_and_alpha(self, obs, step):
         metrics = dict()
         
@@ -127,7 +131,8 @@ class SACAgent:
         if self.use_tb:
             metrics['actor_loss'] = actor_loss.item()
             metrics['actor_logprob'] = log_prob.mean().item()
-            metrics['actor_ent'] = dist.entropy().sum(dim=-1).mean().item()
+            # metrics['actor_ent'] = dist.entropy().sum(dim=-1).mean().item()
+            metrics['actor_ent'] = self.alpha * (-log_prob).mean()
             metrics['actor_alpha'] = self.alpha.item()
             metrics['actor_alpha_loss'] = alpha_loss.item()
 
@@ -160,3 +165,4 @@ class SACAgent:
                                  self.critic_target_tau)
 
         return metrics
+

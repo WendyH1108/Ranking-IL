@@ -5,7 +5,7 @@ obs_type: ${suite.obs_type}
 obs_shape: ??? # to be specified later
 action_dim: ??? # to be specified later
 device: ${device}
-lr: =3e-4
+lr: 3e-4
 batch_size: 1024
 nstep: 1
 log_std_bounds: [-20, 2]
@@ -18,6 +18,6 @@ feature_dim: 50
 actor_use_ln: false
 actor_spectral_norms: [false, false]
 num_expl_steps: 5000
-init_temperature: ???
+init_temperature: 0
 update_every_steps: 2
 use_tb: ${use_tb}

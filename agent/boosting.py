@@ -119,7 +119,7 @@ class BoostingAgent(Agent):
             time_steps[i] = time_steps[i]._replace(reward=rewards[i, 0])
         return time_steps, np.sum(rewards)
 
-    def update_discriminator(self, batch, expert_loader, expert_iter, step):
+    def update_discriminator(self, batch, expert_iter, step):
         metrics = dict()
 
         # Grab Expert Data
@@ -232,7 +232,7 @@ class BoostingAgent(Agent):
     def online_sample(self):
         pass
     
-    def update(self, replay_iter, expert_loader, expert_iter, step):
+    def update(self, replay_iter, expert_iter, online_iter, step):
 
         metrics = dict()
         if step % self.policy.update_every_steps != 0:
@@ -244,11 +244,10 @@ class BoostingAgent(Agent):
         for _ in range(self.discriminator_iter):
             batch = next(replay_iter)
             batch = utils.to_torch(batch, self.device)
-            metrics.update(self.update_discriminator(batch, expert_loader,expert_iter, step))
+            metrics.update(self.update_discriminator(batch, expert_iter, step))
         
         # Policy Update
         for _ in range(self.policy_iter):
-            online_iter = self.online_sample()
             online_batch = next(online_iter)
             online_batch = utils.to_torch(online_batch, self.device)
             metrics.update(self.policy.update(online_batch, step))
