@@ -221,7 +221,7 @@ class ReplayDataset(Dataset):
                 self.idxs = np.empty((ensemble_size, self.len))
                 for i in range(ensemble_size):
                     self.idxs[i] = self.rng.permutation(np.arange(self.len))
-                self.idxs = self.idxs.astype('int32')
+                self.idxs = self.idxs.astype("int32")
 
     def __len__(self):
         return self.len
@@ -335,7 +335,9 @@ class ReplayBufferLocal(IterableDataset):
 
 
 class ReplayBufferMemory:
-    def __init__(self, specs, max_size, batch_size, nstep, discount):
+    def __init__(
+        self, specs, max_size, batch_size, nstep, discount, eta=None, n_samples=None
+    ):
         self._specs = specs
         self._max_size = max_size
         self._batch_size = batch_size
@@ -345,11 +347,23 @@ class ReplayBufferMemory:
         self._full = False
         self._items = dict()
         self._queue = deque([], maxlen=nstep + 1)
+
         for spec in specs:
             self._items[spec.name] = np.empty((max_size, *spec.shape), dtype=spec.dtype)
 
+        self._eta = eta
+
     def __len__(self):
         return self._max_size if self._full else self._idx
+
+    def get_buffer(self):
+        return self._items, self._full, self._idx
+
+    def load_buffer(self, items, full, idx):
+        self._items = items
+        self._full = full
+        self._idx = idx
+        self._queue = deque([], maxlen=self._nstep + 1)
 
     def add(self, time_step):
         for spec in self._specs:
@@ -382,7 +396,10 @@ class ReplayBufferMemory:
             self._queue.clear()
 
     def _sample(self):
-        idxs = np.random.randint(0, len(self), size=self._batch_size)
+        if not self._eta:
+            idxs = np.random.randint(0, len(self), size=self._batch_size)
+        else:
+            idxs = np.random.choice(np.arange(len(self)), size=self._batch_size, p=[])
         batch = tuple(self._items[spec.name][idxs] for spec in self._specs)
         return batch
 
@@ -531,19 +548,20 @@ def make_replay_loader(
     )
     return loader
 
+
 # if __name__ == '__main__':
-    # pass
-    # demos_path = "/home/yh374/Ranking-IL/expert_v2/cheetah_run_10.pkl"
-    # num_demos = 10
-    # batch_size = 2
-    # expert_loader = make_expert_replay_loader(
-    #             demos_path, num_demos,batch_size)
-    # print("pass loader")
+# pass
+# demos_path = "/home/yh374/Ranking-IL/expert_v2/cheetah_run_10.pkl"
+# num_demos = 10
+# batch_size = 2
+# expert_loader = make_expert_replay_loader(
+#             demos_path, num_demos,batch_size)
+# print("pass loader")
 
-    # expert_iter = iter(expert_loader)
+# expert_iter = iter(expert_loader)
 
-    # # print(next(expert_iter))
-    # expert_obs, actions, expert_obs_next = next(expert_iter)
-    # print("expert_obs", expert_obs.shape)
-    # print("actions",actions.shape)
-    # print("expert_obs_next",expert_obs_next.shape)
+# # print(next(expert_iter))
+# expert_obs, actions, expert_obs_next = next(expert_iter)
+# print("expert_obs", expert_obs.shape)
+# print("actions",actions.shape)
+# print("expert_obs_next",expert_obs_next.shape)
