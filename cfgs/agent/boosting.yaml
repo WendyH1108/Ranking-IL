@@ -1,16 +1,12 @@
 # @package agent
 _target_: agent.boosting.BoostingAgent
 name: boosting
-device: ${device}
-algo: ${algo}
 batch_size: ${algo.batch_size}
 task: ${suite.task}
-expert_dir: /home/yh374/Ranking-IL/expert_v2/
+device: ${device}
 feature_dim: ${feature_dim}
-reward_mode: offline_imitation
+algo: ${algo}
 representation: discriminator
 disc_hidden_dim: 512
 disc_type: ${disc_type}
-num_demos: ${num_demos}
-discriminator_iter: 20
-policy_iter: 20
+disc_update_iter: ${disc_iter}

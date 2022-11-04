@@ -42,6 +42,13 @@ ensemble_encoder: false
 uncertainty_type: var_max
 
 
+# BOOSTING
+disc_iter: 20
+policy_iter: 1000
+eta: 0.7
+n_samples: 1000
+
+
 load_checkpoint: false
 checkpoint_path: ./exp/2022.07.05/132235_collect_checkpoints/0/60_snapshot.pt
 

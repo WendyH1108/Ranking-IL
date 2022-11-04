@@ -102,8 +102,8 @@ class Workspace:
                 batch_size=self.cfg.batch_size,
                 nstep=self.cfg.nstep,
                 discount=self.cfg.discount,
-                eta=self.cfg.agent.eta,
-                n_samples=self.cfg.agent.n_samples,
+                eta=self.cfg.eta,
+                n_samples=self.cfg.n_samples,
             )
             self._disc_replay_iter = None
         self._replay_iter = None
