@@ -436,7 +436,8 @@ class ReplayBufferMemory:
             idxs = np.random.randint(0, len(self), size=self._batch_size)
         else:
             weights = self.get_weights()
-            assert weights.shape[0] == len(self)
+            if weights is not None:
+                assert weights.shape[0] == len(self)
             idxs = np.random.choice(
                 np.arange(len(self)), size=self._batch_size, p=weights
             )
