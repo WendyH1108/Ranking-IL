@@ -367,7 +367,8 @@ class ReplayBufferMemory:
 
         # Uniform Sampling
         if n_learners < 2:
-            return None
+            self._weights = None
+            return
 
         # This is the case when n_learners = 2
         if self._weights is None:
@@ -377,7 +378,7 @@ class ReplayBufferMemory:
             uniform_weights[: self._n_samples] *= 1 - self._eta
             uniform_weights[self._n_samples : self._idx] *= self._eta
             self._weights = uniform_weights
-            return self._weights
+            return
 
         # Polyak Averaging for every weak_learner added
         self._weights *= 1 - self._eta
@@ -386,11 +387,10 @@ class ReplayBufferMemory:
         )
         if not self._full:
             self._weights = np.concatenate([self._weights, new_weights])
-            return self._weights
+            return
 
         self._weights[self._idx - self._n_samples : self._idx] = new_weights
         self._weights[self._idx : self._idx + self._n_samples] /= self._eta
-        return self._weights
 
     def get_buffer(self):
         return self._items, self._full, self._idx
@@ -435,11 +435,8 @@ class ReplayBufferMemory:
         if not self._eta:
             idxs = np.random.randint(0, len(self), size=self._batch_size)
         else:
-            weights = self.get_weights()
-            if weights is not None:
-                assert weights.shape[0] == len(self)
             idxs = np.random.choice(
-                np.arange(len(self)), size=self._batch_size, p=weights
+                np.arange(len(self)), size=self._batch_size, p=self._weights
             )
         batch = tuple(self._items[spec.name][idxs] for spec in self._specs)
         return batch

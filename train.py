@@ -290,6 +290,7 @@ class Workspace:
             ):
                 # Add Samples
                 self.collect_samples()
+                self.disc_buffer.get_weights()
                 # Update Disc
                 disc_metrics = self.agent.update_discriminator(
                     self.disc_replay_iter, self.expert_iter
