@@ -16,6 +16,9 @@ save_train_video: false
 use_tb: false
 use_amp: false
 wandb: true
+expert_dir: /home/yh374/Ranking-IL/expert_sac/
+num_demos: 10
+n_sample_episodes: 2
 
 # replay buffer
 replay_buffer_size: ${suite.num_train_steps}

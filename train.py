@@ -89,9 +89,9 @@ class Workspace:
         # TODO: set flags to turn on and off for pixels/state/rl vs il etc....
         # Map loader rather than iterable since we would want all
         if self.cfg.agent.name == "dac" or self.cfg.agent.name == "boosting":
-            demos_path = self.cfg.agent.expert_dir + self.cfg.suite.task + "_10.pkl"
+            demos_path = self.cfg.expert_dir + self.cfg.suite.task + "_10.pkl"
             self.expert_loader = make_expert_replay_loader(
-                demos_path, self.cfg.agent.num_demos, self.cfg.agent.batch_size
+                demos_path, self.cfg.num_demos, self.cfg.agent.batch_size
             )
             self.expert_iter = iter(self.expert_loader)
 
@@ -140,7 +140,7 @@ class Workspace:
     # TODO: Figure out subsampling......
     def collect_samples(self):
         episode = 0
-        while episode < self.cfg.agent.n_sample_episodes:
+        while episode < self.cfg.n_sample_episodes:
             time_step = self.eval_env.reset()
             time_steps = [time_step]
 
