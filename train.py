@@ -139,10 +139,12 @@ class Workspace:
 
     # TODO: Figure out subsampling......
     def collect_samples(self):
-        episode = 0
-        while episode < self.cfg.agent.n_sample_episodes:
+        # while episode < self.cfg.agent.n_sample_episodes:
+        samples = 0
+        while samples < self.cfg.n_samples:
             time_step = self.eval_env.reset()
-            time_steps = [time_step]
+            self.disc_buffer.add(time_step)
+            samples += 1
 
             while not time_step.last():
                 with torch.no_grad(), utils.eval_mode(self.agent.policy):
@@ -150,12 +152,9 @@ class Workspace:
                         time_step.observation, self.global_step, eval_mode=False
                     )
                 time_step = self.eval_env.step(action)
-                time_steps.append(time_step)
+                self.disc_buffer.add(time_step)
+                samples += 1
 
-            episode += 1
-
-            for ts in time_steps:
-                self.disc_buffer.add(ts)
 
     def eval(self):
         step, episode, total_reward = 0, 0, 0
