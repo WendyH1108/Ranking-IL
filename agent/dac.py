@@ -28,7 +28,7 @@ class DACAgent(Agent):
         disc_hidden_dim,
         disc_type,
         discriminator_iter,
-        policy_iter
+        policy_iter,
     ):
 
         super().__init__(name, task, device, algo)
@@ -77,29 +77,29 @@ class DACAgent(Agent):
         elif self.representation == "discriminator":
             return self.discriminator.encode(obs)
 
-    def compute_online_rewards(self, obs, step, fictitious = False):
+    def compute_online_rewards(self, obs, step, fictitious=False):
         if self.policy.obs_type == "pixels":
             obs = self.encode(obs)
         with torch.no_grad():
             with utils.eval_mode(self.discriminator):
                 if not fictitious:
                     d = self.discriminator(obs)
-            # s = torch.sigmoid(d)
-            # # Mixture Reward....
-            # # rewards = s.log() - (1 - s).log()
+                # s = torch.sigmoid(d)
+                # # Mixture Reward....
+                # # rewards = s.log() - (1 - s).log()
 
-            # # Survival Bias (i.e. GAIL/DAC reward)
-            # rewards = -(1 - s).log()
+                # # Survival Bias (i.e. GAIL/DAC reward)
+                # rewards = -(1 - s).log()
                 else:
                     reward_list = []
                     for dis_state in self.discriminator_list:
                         self.discriminator_reward.load_state_dict(dis_state)
                         reward_list.append(self.discriminator_reward(obs))
-                    if len(reward_list)!=0:
+                    if len(reward_list) != 0:
                         d = sum(reward_list) / len(reward_list)
                     else:
                         d = self.discriminator(obs)
-                
+
             rewards = d
             return rewards.flatten().detach().reshape(-1, 1)
             # return d
@@ -129,10 +129,12 @@ class DACAgent(Agent):
         metrics = dict()
 
         # Grab Expert Data
-        expert_obs, expert_actions, expert_obs_next = utils.to_torch(next(expert_iter), self.device)
+        expert_obs, expert_actions, expert_obs_next = utils.to_torch(
+            next(expert_iter), self.device
+        )
         expert_obs = expert_obs.float()[: self.batch_size // 2]
         batch_size = expert_obs.shape[0]
-        expert_actions = np.squeeze(expert_actions,axis=1)[: self.batch_size // 2]
+        expert_actions = np.squeeze(expert_actions, axis=1)[: self.batch_size // 2]
         # Grab Policy Data
         obs = batch[0]
         actions = batch[1]
@@ -147,12 +149,12 @@ class DACAgent(Agent):
         #         policy_obs=torch.cat((policy_obs,obs[traj_idx[i]][idx[i]]), 0)
         #         buffer.add(time_list[traj_idx[i]][idx[i]])
         #         policy_actions=torch.cat((policy_actions,actions[traj_idx[i]][idx[i]] ), 0)
-            
+
         #     policy_obs = policy_obs.reshape(size,policy_obs.shape[0]//size)
         #     policy_actions = policy_actions.reshape(size,policy_actions.shape[0]//size)
         policy_obs = obs[: self.batch_size // 2]
-        policy_actions = np.squeeze(expert_actions,axis=1)[: self.batch_size // 2]
-            
+        policy_actions = np.squeeze(expert_actions, axis=1)[: self.batch_size // 2]
+
         with torch.no_grad():
             if self.disc_type == "ss":
                 # (s, s')
@@ -166,6 +168,7 @@ class DACAgent(Agent):
             if self.disc_type == "sa":
                 expert_data = torch.cat([expert_obs, expert_actions], dim=1)
                 policy_data = torch.cat([policy_obs, policy_actions], dim=1)
+
         if self.policy.obs_type == "pixels":
             with torch.no_grad():
                 disc_input = self.encode(disc_input)
@@ -181,8 +184,10 @@ class DACAgent(Agent):
         # )
         # dis_expert = self.discriminator(expert_traj,encode=False)
         # dis_policy = self.discriminator(policy_traj,encode=False)
-                                
-        dac_loss = torch.mean(self.discriminator(expert_data,encode=False)) - torch.mean(self.discriminator(policy_data,encode=False))
+
+        dac_loss = torch.mean(
+            self.discriminator(expert_data, encode=False)
+        ) - torch.mean(self.discriminator(policy_data, encode=False))
         dac_loss /= batch_size
         metrics["train/disc_loss"] = dac_loss.mean().item()
 
@@ -192,7 +197,7 @@ class DACAgent(Agent):
             self.discriminator, expert_data, policy_data
         )  # used to detach
         grad_pen /= policy_obs.shape[0]
-        
+
         # calculate divergence
         # sample = expert_loader.dataset
         # expert_traj_obs = torch.stack(list(utils.to_torch(sample.obs,self.device)), dim=0)
@@ -212,7 +217,7 @@ class DACAgent(Agent):
             self.discriminator_list.append(self.discriminator.state_dict())
         return metrics
 
-    def collect_policy_batch(self,env, step, buffer):
+    def collect_policy_batch(self, env, step, buffer):
         eval_return = 0
         states = list()
         actions = list()
@@ -229,9 +234,7 @@ class DACAgent(Agent):
                 traj_time.append(time_step)
                 traj_states.append(np.array(time_step.observation))
                 with torch.no_grad():
-                    action = self.act(
-                        time_step.observation, step, eval_mode=True
-                    )
+                    action = self.act(time_step.observation, step, eval_mode=True)
                 # reward = time_step.reward
                 time_step = env.step(action)
 
@@ -241,14 +244,14 @@ class DACAgent(Agent):
                 # dones.append(bool(time_step.last() == True))
             states.append(np.array(traj_states))
             time_list.append(traj_time)
-            actions.append(np.squeeze(np.array(traj_actions),axis = 1))
+            actions.append(np.squeeze(np.array(traj_actions), axis=1))
             next_states.append(np.array(traj_next_states))
-        
+
         batch_states = list()
         batch_actions = list()
         batch_next_states = list()
-        traj_idx = np.random.randint(0,5,self.batch_size // 2)
-        idx = np.random.randint(0,obs.shape[1],self.batch_size // 2)
+        traj_idx = np.random.randint(0, 5, self.batch_size // 2)
+        idx = np.random.randint(0, obs.shape[1], self.batch_size // 2)
 
         size = self.batch_size // 2
         # random select pairs
@@ -257,17 +260,27 @@ class DACAgent(Agent):
             buffer.add(time_list[traj_idx[i]][idx[i]])
             batch_actions.append(actions[traj_idx[i]][idx[i]])
             batch_next_states.append(next_states[traj_idx[i]][idx[i]])
-        return (np.array(states), np.array(actions), np.array(next_states)) ,(np.array(batch_states), np.array(batch_actions), np.array(batch_next_states))
-    
+        return (np.array(states), np.array(actions), np.array(next_states)), (
+            np.array(batch_states),
+            np.array(batch_actions),
+            np.array(batch_next_states),
+        )
+
     def compute_divergence(self, expert_loader, on_policy_data):
         obs = on_policy_data[0]
         actions = on_policy_data[1]
         sample = expert_loader.dataset
-        expert_traj_obs = torch.stack(list(utils.to_torch(sample.obs,self.device)), dim=0)
-        expert_traj_actions = torch.stack(list(utils.to_torch(sample.act.squeeze(),self.device)), dim=0)
+        expert_traj_obs = torch.stack(
+            list(utils.to_torch(sample.obs, self.device)), dim=0
+        )
+        expert_traj_actions = torch.stack(
+            list(utils.to_torch(sample.act.squeeze(), self.device)), dim=0
+        )
         expert_traj = torch.cat([expert_traj_obs, expert_traj_actions], dim=2)
-        policy_traj = torch.cat([obs, actions], dim=len(obs.shape)-1)
-        return torch.mean(self.discriminator(expert_traj,encode=False)) - torch.mean(self.discriminator(policy_traj,encode=False))    
+        policy_traj = torch.cat([obs, actions], dim=len(obs.shape) - 1)
+        return torch.mean(self.discriminator(expert_traj, encode=False)) - torch.mean(
+            self.discriminator(policy_traj, encode=False)
+        )
 
     def update(self, env, buffer, replay_iter, expert_loader, expert_iter, step):
 
@@ -276,8 +289,7 @@ class DACAgent(Agent):
             return metrics
 
         assert repr(self) != "online_imitation"
-        
-        
+
         # Fictitious play on batch
         # obs, action, reward, discount, next_obs = batch
         # new_obs = torch.cat(
@@ -285,28 +297,29 @@ class DACAgent(Agent):
         #     ).to(self.device)
         # avg_rewards = self.compute_online_rewards(new_obs, step,True)
         # batch = (obs, action, avg_rewards, discount, next_obs)
-        
+
         # collect trajectories(agent policy), return tensor of ss'/ss'a
-        # on-policy batch <- collect here  
+        # on-policy batch <- collect here
         # policy_dataset, policy_batch = self.collect_policy_batch(env,step)
         # policy_batch = utils.to_torch(policy_batch, self.device)
-        
-        # Disciminator Update    
+
+        # Disciminator Update
         # def update_discriminator(self, batch, expert_loader, expert_iter, on_policy_data, step):
         self.policy.reset_step()
         for _ in range(self.discriminator_iter):
             batch = next(replay_iter)
             batch = utils.to_torch(batch, self.device)
-            metrics.update(self.update_discriminator(batch, expert_loader,expert_iter, step))
-        
+            metrics.update(
+                self.update_discriminator(batch, expert_loader, expert_iter, step)
+            )
+
         # Policy Update
         for _ in range(self.policy_iter):
             batch = next(replay_iter)
             batch = utils.to_torch(batch, self.device)
             metrics.update(self.policy.update(batch, step))
-        
+
         # metrics update ?
         return metrics
-    
-    # if __name__ == '__main__':
 
+    # if __name__ == '__main__':

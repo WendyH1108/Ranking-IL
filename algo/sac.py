@@ -9,11 +9,30 @@ from nets import DoubleQCritic, StochasticActor
 
 
 class SACAgent:
-    def __init__(self, name, obs_type, obs_shape, action_dim, device, lr, nstep,
-                 batch_size, log_std_bounds, critic_target_tau, critic_use_ln,
-                 critic_hidden_dims, critic_spectral_norms, actor_hidden_dims, feature_dim,
-                 actor_use_ln, actor_spectral_norms, num_expl_steps, init_temperature,
-                 update_every_steps, use_tb):
+    def __init__(
+        self,
+        name,
+        obs_type,
+        obs_shape,
+        action_dim,
+        device,
+        lr,
+        nstep,
+        batch_size,
+        log_std_bounds,
+        critic_target_tau,
+        critic_use_ln,
+        critic_hidden_dims,
+        critic_spectral_norms,
+        actor_hidden_dims,
+        feature_dim,
+        actor_use_ln,
+        actor_spectral_norms,
+        num_expl_steps,
+        init_temperature,
+        update_every_steps,
+        use_tb,
+    ):
 
         self.device = device
         self.obs_type = obs_type
@@ -25,17 +44,36 @@ class SACAgent:
         self.num_expl_steps = num_expl_steps
         self.batch_size = batch_size
         self.lr = lr
-        
-        # models
-        self.actor = StochasticActor(obs_shape[0], action_dim, feature_dim, actor_hidden_dims, actor_spectral_norms,
-                                     log_std_bounds).to(device)
 
-        self.critic = DoubleQCritic(obs_type, obs_shape[0], action_dim, feature_dim, critic_hidden_dims,
-                                    critic_spectral_norms).to(device)
-        self.critic_target = DoubleQCritic(obs_type, obs_shape[0], action_dim, feature_dim, critic_hidden_dims, critic_spectral_norms).to(device)
+        # models
+        self.actor = StochasticActor(
+            obs_shape[0],
+            action_dim,
+            feature_dim,
+            actor_hidden_dims,
+            actor_spectral_norms,
+            log_std_bounds,
+        ).to(device)
+
+        self.critic = DoubleQCritic(
+            obs_type,
+            obs_shape[0],
+            action_dim,
+            feature_dim,
+            critic_hidden_dims,
+            critic_spectral_norms,
+        ).to(device)
+        self.critic_target = DoubleQCritic(
+            obs_type,
+            obs_shape[0],
+            action_dim,
+            feature_dim,
+            critic_hidden_dims,
+            critic_spectral_norms,
+        ).to(device)
         self.critic_target.load_state_dict(self.critic.state_dict())
         self.init_temperature = init_temperature
-        self.log_alpha = torch.tensor(init_temperature, dtype= torch.float64).to(device)
+        self.log_alpha = torch.tensor(init_temperature, dtype=torch.float64).to(device)
         self.log_alpha.requires_grad = True
         # set target entropy to -|A|
         self.target_entropy = -action_dim
@@ -76,18 +114,17 @@ class SACAgent:
             next_action = dist.sample()
             next_log_prob = dist.log_prob(next_action).sum(-1, keepdim=True)
             target_Q1, target_Q2 = self.critic_target(next_obs, next_action)
-            target_V = torch.min(target_Q1,
-                                 target_Q2) - self.alpha * next_log_prob
+            target_V = torch.min(target_Q1, target_Q2) - self.alpha * next_log_prob
             target_Q = reward + (discount * target_V)
 
         Q1, Q2 = self.critic(obs, action)
         critic_loss = F.mse_loss(Q1, target_Q) + F.mse_loss(Q2, target_Q)
 
         if self.use_tb:
-            metrics['critic_target_q'] = target_Q.mean().item()
-            metrics['critic_q1'] = Q1.mean().item()
-            metrics['critic_q2'] = Q2.mean().item()
-            metrics['critic_loss'] = critic_loss.item()
+            metrics["critic_target_q"] = target_Q.mean().item()
+            metrics["critic_q1"] = Q1.mean().item()
+            metrics["critic_q2"] = Q2.mean().item()
+            metrics["critic_loss"] = critic_loss.item()
 
         # optimize critic
         self.critic_opt.zero_grad(set_to_none=True)
@@ -95,14 +132,17 @@ class SACAgent:
         self.critic_opt.step()
 
         return metrics
-    
+
     def reset_noise(self):
-        self.log_alpha = torch.tensor(self.init_temperature, dtype= torch.float64).to(device)
+        self.log_alpha = torch.tensor(self.init_temperature, dtype=torch.float64).to(
+            self.device
+        )
+        self.log_alpha.requires_grad = True
         self.alpha_opt = torch.optim.Adam([self.log_alpha], lr=self.lr)
-    
+
     def update_actor_and_alpha(self, obs, step):
         metrics = dict()
-        
+
         utils.set_requires_grad(self.critic, False)
 
         dist = self.actor(obs)
@@ -118,51 +158,45 @@ class SACAgent:
         actor_loss.backward()
         self.actor_opt.step()
 
-        alpha_loss = (self.alpha *
-                      (-log_prob - self.target_entropy).detach()).mean()
+        alpha_loss = (self.alpha * (-log_prob - self.target_entropy).detach()).mean()
 
         # optimize alpha
         self.alpha_opt.zero_grad(set_to_none=True)
         alpha_loss.backward()
         self.alpha_opt.step()
-        
+
         utils.set_requires_grad(self.critic, True)
 
         if self.use_tb:
-            metrics['actor_loss'] = actor_loss.item()
-            metrics['actor_logprob'] = log_prob.mean().item()
+            metrics["actor_loss"] = actor_loss.item()
+            metrics["actor_logprob"] = log_prob.mean().item()
             # metrics['actor_ent'] = dist.entropy().sum(dim=-1).mean().item()
-            metrics['actor_ent'] = self.alpha * (-log_prob).mean()
-            metrics['actor_alpha'] = self.alpha.item()
-            metrics['actor_alpha_loss'] = alpha_loss.item()
+            metrics["actor_ent"] = self.alpha * (-log_prob).mean()
+            metrics["actor_alpha"] = self.alpha.item()
+            metrics["actor_alpha_loss"] = alpha_loss.item()
 
         return metrics
-    
-    def update_discriminator(self, obs):
-        return dict()
 
     def update(self, batch, step):
-        
+
         obs, action, reward, discount, next_obs = batch
-            
+
         metrics = dict()
 
-        if step % self.update_every_steps != 0:
-            return metrics
-
         if self.use_tb:
-            metrics['batch_reward'] = reward.mean().item()
+            metrics["batch_reward"] = reward.mean().item()
 
         # update critic
         metrics.update(
-            self.update_critic(obs, action, reward, discount, next_obs, step))
+            self.update_critic(obs, action, reward, discount, next_obs, step)
+        )
 
         # update actor
         metrics.update(self.update_actor_and_alpha(obs.detach(), step))
 
         # update critic target
-        utils.soft_update_params(self.critic, self.critic_target,
-                                 self.critic_target_tau)
+        utils.soft_update_params(
+            self.critic, self.critic_target, self.critic_target_tau
+        )
 
         return metrics
-

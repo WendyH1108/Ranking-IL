@@ -50,42 +50,6 @@ class Workspace:
         self._global_step = 0
         self._global_episode = 0
         self._best_eval_return = -float("inf")
-        # # ///
-        # print("test part")
-        # self.eval_env = hydra.utils.call(self.cfg.suite.task_make_fn_eval)
-        # time_step = self.eval_env.reset()
-        # with torch.no_grad():
-        #     action = self.agent.act(time_step.observation, self.global_step, eval_mode=True)
-        # print(action.shape)
-        # for i in range(10):
-        #     time_step = self.train_env.reset()
-        #     time_steps = [time_step]
-        #     metrics = None
-        #     t0 = time()
-        #     for ts in time_steps:
-        #         self.buffer.add(ts)
-        # r_iter = iter(self.buffer.replay_buffer)
-        # batch = next(r_iter)
-        # batch = utils.to_torch(batch, self.device)
-        # print("test", len(self.buffer.replay_buffer))
-        # print(batch[0][0])
-        # print("check len", len(next(expert_iter)))
-        # print("check len", next(expert_iter)[0].shape)
-        # expert_obs, actions, expert_obs_next = next(expert_iter)
-        # for i in range(10):
-        # self.agent.update(self.train_env, self.buffer, self.replay_iter, self.expert_loader, self.expert_iter, self.global_step)
-        # demos_path = (
-        #         self.cfg.agent.expert_dir + self.cfg.suite.task + "_10.pkl"
-        #     )
-        # expert_loader = make_expert_replay_loader(
-        #         demos_path, self.cfg.agent.num_demos, self.cfg.agent.batch_size
-        #     )
-        # self.expert_iter = iter(expert_loader)
-        # sample = expert_loader.dataset._sample_episode()
-        # sample = utils.to_torch(sample["observation"], self.device)
-        # print(torch.stack(list(sample), dim=0).shape)
-        # exit()
-        # # ///
 
     def setup(self):
 
@@ -114,25 +78,6 @@ class Workspace:
             f"Initialized Environment\nTask: {self.cfg.suite.task}\nObs Shape: {self.cfg.algo.obs_shape}\nAction Dim: {n_action}"
         )
 
-        # create buffers
-        data_specs = (
-            obs_spec,
-            action_spec,
-            # specs.Array((1,), np.float32, "reward"),
-            # specs.Array((1,), np.float32, "discount"),
-            specs.Array((), np.float32, "reward"),
-            specs.Array((), np.float32, "discount"),
-        )
-
-        # TODO: Better cfg logic for return one step
-        # self.buffer = ReplayWrapper(
-        #     self.train_env,
-        #     data_specs,
-        #     self.work_dir,
-        #     self.cfg,
-        #     buffer_name="buffer",
-        #     return_one_step=self.cfg.return_one_step,
-        # )
         self.buffer = ReplayBufferMemory(
             specs=self.train_env.specs(),
             max_size=self.cfg.replay_buffer_size,
@@ -347,7 +292,11 @@ class Workspace:
                 # Add Samples
                 self.collect_samples()
                 # Update Disc
-                disc_metrics = self.agent.update_discriminator(self.disc_replay_iter)
+                disc_metrics = self.agent.update_discriminator(
+                    self.disc_replay_iter, self.expert_iter
+                )
+
+                wandb.log(disc_metrics)
 
                 # Reset Policy
                 if self.cfg.agent.reset_policy:
@@ -373,6 +322,10 @@ class Workspace:
                         self.expert_loader,
                         self.expert_iter,
                         self.global_step,
+                    )
+                elif self.cfg.agent.name == "boosting":
+                    metrics = self.agent.update(
+                        self.replay_iter, self.expert_iter, self.global_step
                     )
                 else:
                     metrics = self.agent.update(self.replay_iter, self.global_step)
