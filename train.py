@@ -1,7 +1,3 @@
-import warnings
-
-warnings.filterwarnings("ignore", category=DeprecationWarning)
-warnings.filterwarnings("ignore", category=UserWarning)
 import datetime
 
 import os
@@ -18,6 +14,10 @@ from video import VideoRecorder
 
 from time import time
 import wandb
+import warnings
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=UserWarning)
 
 os.environ["MKL_SERVICE_FORCE_INTEL"] = "1"
 os.environ["MUJOCO_GL"] = "egl"
@@ -134,7 +134,7 @@ class Workspace:
         #     return_one_step=self.cfg.return_one_step,
         # )
         self.buffer = ReplayBufferMemory(
-            specs=data_specs,
+            specs=self.train_env.specs(),
             max_size=self.cfg.replay_buffer_size,
             batch_size=self.cfg.batch_size,
             nstep=self.cfg.nstep,  # only works for 1 for now.....
@@ -152,7 +152,7 @@ class Workspace:
 
         if self.cfg.agent.name == "boosting":
             self.disc_buffer = ReplayBufferMemory(
-                specs=data_specs,
+                specs=self.train_env.specs(),
                 max_size=self.cfg.replay_buffer_size,
                 batch_size=self.cfg.batch_size,
                 nstep=self.cfg.nstep,

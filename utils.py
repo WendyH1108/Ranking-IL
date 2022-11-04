@@ -8,6 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import autograd
 
+
 class eval_mode:
     def __init__(self, *models):
         self.models = models
@@ -51,22 +52,23 @@ def to_torch(xs, device, dtype=None):
 def weight_init(m):
     if isinstance(m, nn.Linear):
         nn.init.orthogonal_(m.weight.data)
-        if hasattr(m.bias, 'data'):
+        if hasattr(m.bias, "data"):
             m.bias.data.fill_(0.0)
     elif isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
-        gain = nn.init.calculate_gain('relu')
+        gain = nn.init.calculate_gain("relu")
         nn.init.orthogonal_(m.weight.data, gain)
-        if hasattr(m.bias, 'data'):
+        if hasattr(m.bias, "data"):
             m.bias.data.fill_(0.0)
+
 
 def qr_weight_init(m):
     if isinstance(m, nn.Linear):
         nn.init.kaiming_normal_(m.weight.data)
-        if hasattr(m.bias, 'data'):
+        if hasattr(m.bias, "data"):
             m.bias.data.fill_(0.0)
     elif isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
         nn.init.xavier_normal_(m.weight.data)
-        if hasattr(m.bias, 'data'):
+        if hasattr(m.bias, "data"):
             m.bias.data.fill_(0.0)
 
 
@@ -89,12 +91,12 @@ def schedule(schdl, step):
     try:
         return float(schdl)
     except ValueError:
-        match = re.match(r'linear\((.+),(.+),(.+)\)', schdl)
+        match = re.match(r"linear\((.+),(.+),(.+)\)", schdl)
         if match:
             init, final, duration = [float(g) for g in match.groups()]
             mix = np.clip(step / duration, 0.0, 1.0)
             return (1.0 - mix) * init + mix * final
-        match = re.match(r'step_linear\((.+),(.+),(.+),(.+),(.+)\)', schdl)
+        match = re.match(r"step_linear\((.+),(.+),(.+),(.+),(.+)\)", schdl)
         if match:
             init, final1, duration1, final2, duration2 = [
                 float(g) for g in match.groups()
@@ -107,8 +109,7 @@ def schedule(schdl, step):
                 return (1.0 - mix) * final1 + mix * final2
     raise NotImplementedError(schdl)
 
-    
-    
+
 class RandomShiftsAug(nn.Module):
     def __init__(self, pad):
         super().__init__()
@@ -119,30 +120,23 @@ class RandomShiftsAug(nn.Module):
         n, c, h, w = x.size()
         assert h == w
         padding = tuple([self.pad] * 4)
-        x = F.pad(x, padding, 'replicate')
+        x = F.pad(x, padding, "replicate")
         eps = 1.0 / (h + 2 * self.pad)
-        arange = torch.linspace(-1.0 + eps,
-                                1.0 - eps,
-                                h + 2 * self.pad,
-                                device=x.device,
-                                dtype=x.dtype)[:h]
+        arange = torch.linspace(
+            -1.0 + eps, 1.0 - eps, h + 2 * self.pad, device=x.device, dtype=x.dtype
+        )[:h]
         arange = arange.unsqueeze(0).repeat(h, 1).unsqueeze(2)
         base_grid = torch.cat([arange, arange.transpose(1, 0)], dim=2)
         base_grid = base_grid.unsqueeze(0).repeat(n, 1, 1, 1)
 
-        shift = torch.randint(0,
-                              2 * self.pad + 1,
-                              size=(n, 1, 1, 2),
-                              device=x.device,
-                              dtype=x.dtype)
+        shift = torch.randint(
+            0, 2 * self.pad + 1, size=(n, 1, 1, 2), device=x.device, dtype=x.dtype
+        )
         shift *= 2.0 / (h + 2 * self.pad)
 
         grid = base_grid + shift
-        return F.grid_sample(x,
-                             grid,
-                             padding_mode='zeros',
-                             align_corners=False)
-    
+        return F.grid_sample(x, grid, padding_mode="zeros", align_corners=False)
+
 
 def compute_gradient_penalty(discriminator, expert_data, policy_data):
     alpha = torch.rand(expert_data.size(0), 1)
@@ -154,12 +148,14 @@ def compute_gradient_penalty(discriminator, expert_data, policy_data):
 
     disc = discriminator(mixup_data)
     ones = torch.ones(disc.size()).to(disc.device)
-    grad = autograd.grad(outputs=disc,
-                         inputs=mixup_data,
-                         grad_outputs=ones,
-                         create_graph=True,
-                         retain_graph=True,
-                         only_inputs=True)[0]
+    grad = autograd.grad(
+        outputs=disc,
+        inputs=mixup_data,
+        grad_outputs=ones,
+        create_graph=True,
+        retain_graph=True,
+        only_inputs=True,
+    )[0]
 
     grad_pen = 10 * (grad.norm(2, dim=1) - 1).pow(2).sum()
     return grad_pen
@@ -172,5 +168,5 @@ def cosine_distance_torch(x, y):
     x_n = x_norm.unsqueeze(1)
     y_n = y_norm.unsqueeze(1)
     norms = torch.mm(x_n, y_n.T)
-    C = (1 - C / norms)
+    C = 1 - C / norms
     return C
