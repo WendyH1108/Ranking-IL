@@ -87,18 +87,21 @@ class BoostingAgent(Agent):
         for _ in range(self.disc_update_iter):
             policy_batch = next(replay_iter)
             expert_batch = next(expert_iter)
+            
+            # expert_data = np.concatenate([expert_batch[0], np.squeeze(expert_batch[1], axis=1)], axis=1)
+            # policy_data = np.concatenate([policy_batch[0], np.squeeze(policy_batch[1], axis=1)], axis=1)
+            
+            expert_data = torch.cat([expert_batch[0], torch.squeeze(expert_batch[1], dim=1)], dim=1)
 
-            expert_data = np.concatenate([expert_batch[0], np.squeeze(expert_batch[1], axis=1)], axis=1)
-            policy_data = np.concatenate([policy_batch[0], np.squeeze(policy_batch[1], axis=1)], axis=1)
-
+            policy_data = np.concatenate([policy_batch[0], policy_batch[1]], axis=1)
+            policy_data = torch.from_numpy(policy_data)
+            
             #batch
             batch_size = self.batch_size // 2
             expert_data = expert_data[: batch_size]
             policy_data = policy_data[: batch_size]
 
-            expert_data = utils.to_torch(expert_data, self.device)
-            policy_data = utils.to_torch(policy_data, self.device)
-
+            expert_data, policy_data = utils.to_torch((expert_data, policy_data), self.device)
             
             dac_loss = torch.mean(self.discriminator(expert_data, encode=False)) - torch.mean(self.discriminator(policy_data, encode=False))
             dac_loss /= batch_size

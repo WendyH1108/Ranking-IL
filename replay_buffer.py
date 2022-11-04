@@ -375,7 +375,7 @@ class ReplayBufferMemory:
                 (len(self)), 1 / self._n_samples, dtype=np.float32
             )
             uniform_weights[: self._n_samples] *= 1 - self._eta
-            uniform_weights[self.n_samples : self._idx] *= self._eta
+            uniform_weights[self._n_samples : self._idx] *= self._eta
             self._weights = uniform_weights
             return self._weights
 

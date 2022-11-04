@@ -286,7 +286,7 @@ class Workspace:
             # ========== BOOSTING ==========
             if (
                 self.cfg.agent.name == "boosting"
-                and self.global_step % self.cfg.policy_iter
+                and self.global_step % self.cfg.policy_iter == 0
             ):
                 # Add Samples
                 self.collect_samples()
@@ -298,7 +298,7 @@ class Workspace:
                 wandb.log(disc_metrics)
 
                 # Reset Policy
-                if self.cfg.agent.reset_policy:
+                if self.cfg.reset_policy:
                     self.agent.reset_policy()
 
                 # Reset Buffer

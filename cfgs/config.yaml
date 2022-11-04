@@ -19,6 +19,7 @@ wandb: true
 expert_dir: /home/yh374/Ranking-IL/expert_sac/
 num_demos: 10
 n_sample_episodes: 2
+reset_policy: true
 
 # replay buffer
 replay_buffer_size: ${suite.num_train_steps}
