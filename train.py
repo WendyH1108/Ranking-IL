@@ -220,6 +220,7 @@ class Workspace:
         time_steps = [time_step]
         metrics = None
         eval_counter = 0
+        eval_return = 0
         divergence = 0
         # while self.global_step < self.cfg.suite.num_train_steps:
         for _ in range(self.cfg.suite.num_train_steps):
@@ -332,6 +333,7 @@ class Workspace:
 
                 metrics["eval/custom_step"] = eval_counter
                 metrics["eval/divergence"] = divergence
+                metrics["eval/eval_return"] = eval_return
                 self.logger.log_metrics(metrics, self.global_frame, ty="train")
                 wandb.log(metrics)
 

@@ -47,7 +47,7 @@ uncertainty_type: var_max
 
 
 # BOOSTING
-disc_iter: 20
+disc_iter: 50
 policy_iter: 1000
 eta: 0.7
 n_samples: 1000
