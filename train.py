@@ -106,6 +106,8 @@ class Workspace:
                 n_samples=self.cfg.n_samples,
             )
             self._disc_replay_iter = None
+            self.cfg.n_learners = self.cfg.replay_buffer_size // self.cfg.n_samples
+
         self._replay_iter = None
 
     @property
@@ -264,6 +266,7 @@ class Workspace:
         time_steps = [time_step]
         metrics = None
         eval_counter = 0
+        eval_return = 0
         divergence = 0
         # while self.global_step < self.cfg.suite.num_train_steps:
         for _ in range(self.cfg.suite.num_train_steps):

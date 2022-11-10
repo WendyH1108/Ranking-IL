@@ -10,3 +10,4 @@ representation: discriminator
 disc_hidden_dim: 512
 disc_type: ${disc_type}
 disc_update_iter: ${disc_iter}
+n_learners: ${n_learners}

@@ -172,12 +172,23 @@ class BoostingAgent(Agent):
 
         replay_batch = next(replay_iter)
         expert_batch = next(expert_iter)
+        
+        expert_batch[1] = torch.squeeze(expert_batch[1], dim=1)
+        
+        replay_batch = utils.to_torch(replay_batch, self.device)
+        expert_batch = utils.to_torch(expert_batch, self.device)
+        
+        state = torch.cat([replay_batch[0], expert_batch[0]], dim=0)
+        action = torch.cat([replay_batch[1], expert_batch[1]], dim=0)
+        next_state = torch.cat([replay_batch[-1], expert_batch[2]], dim=0)
+        discount = replay_batch[3].tile((2,1))
+        
+        batch = [state, action, None, discount, next_state]
 
+        
         # FOR NOW 50/50
         # TODO: mix proportion control
-        batch = utils.to_torch(
-            torch.cat([replay_batch, expert_batch], dim=0), self.device
-        )
+        # batch = utils.to_torch(torch.cat([replay_batch, expert_batch], dim=0), self.device)
 
         # Update Reward
         # TODO: Handle different disc input types
