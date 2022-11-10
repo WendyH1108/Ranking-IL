@@ -362,6 +362,18 @@ class ReplayBufferMemory:
     def __len__(self):
         return self._max_size if self._full else self._idx
 
+    def get_learner_weights(self):
+        # For evaluation
+
+        if self._weights is None:
+            return None
+
+        policy_weights = np.unique(self._weights * self._n_samples)
+        policy_weights.sort()
+
+        # In accending order
+        return policy_weights
+
     def get_weights(self):
         n_learners = len(self) // self._n_samples
 

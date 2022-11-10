@@ -155,6 +155,50 @@ class Workspace:
                 self.disc_buffer.add(time_step)
                 samples += 1
 
+    def boosted_eval(self):
+        step, episode, total_reward = 0, 0, 0
+        states = list()
+        actions = list()
+        next_states = list()
+
+        # For boosting
+        policy_weights = self.disc_buffer.get_learner_weights()
+
+        while episode < self.cfg.suite.num_eval_episodes:
+            ep_rew = 0
+
+            # Sample Learner/Policy
+            self.agent.sample_learner(policy_weights)
+            time_step = self.eval_env.reset()
+
+            traj_states = list()
+            traj_actions = list()
+            traj_next_states = list()
+
+            while not time_step.last():
+                traj_states.append(np.array(time_step.observation))
+                # Action
+                action = self.agent.boosted_act(time_step.observation)
+                # Env Step
+                time_step = self.eval_env.step(action)
+
+                traj_actions.append(np.array([action]))
+                traj_next_states.append(np.array(time_step.observation))
+
+                ep_rew += time_step.reward
+                step += 1
+
+            states.append(np.array(traj_states))
+            actions.append(np.squeeze(np.array(traj_actions), axis=1))
+            next_states.append(np.array(traj_next_states))
+            total_reward += ep_rew
+            episode += 1
+
+        return total_reward / episode, (
+            np.array(states),
+            np.array(actions),
+            np.array(next_states),
+        )
 
     def eval(self):
         step, episode, total_reward = 0, 0, 0
@@ -250,16 +294,17 @@ class Workspace:
                         log("step", self.global_step)
                         # if repr(self.agent) == "offline_imitation":
                         #     log("episode_imitation_return", imitation_return)
-                    wandb.log(
-                        {
-                            "train/fps": episode_frame / elapsed_time,
-                            "train/total_time": total_time,
-                            "train/episode_reward": episode_reward,
-                            "train/episode_length": episode_frame,
-                            "train/episode": self.global_episode,
-                            "train/global_step": self.global_step,
-                        }
-                    )
+                    if self.cfg.wandb:
+                        wandb.log(
+                            {
+                                "train/fps": episode_frame / elapsed_time,
+                                "train/total_time": total_time,
+                                "train/episode_reward": episode_reward,
+                                "train/episode_length": episode_frame,
+                                "train/episode": self.global_episode,
+                                "train/global_step": self.global_step,
+                            }
+                        )
 
                 # reset env
                 time_step = self.train_env.reset()
@@ -277,10 +322,18 @@ class Workspace:
                 # if eval_return > self.best_eval_return:
                 #     ret = int(eval_return)
                 #     self.save_snapshot(f"{ret}_snapshot.pt")
-                on_policy_data = utils.to_torch(on_policy_data, self.device)
-                divergence = self.agent.compute_divergence(
-                    self.expert_loader, on_policy_data
-                )
+                if self.cfg.agent.name != "rl":
+                    on_policy_data = utils.to_torch(on_policy_data, self.device)
+                    divergence = self.agent.compute_divergence(
+                        self.expert_loader, on_policy_data
+                    )
+
+                if self.cfg.agent.name == "boosting":
+                    boosted_eval_return, boosted_data = self.boosted_eval()
+                    boosted_data = utils.to_torch(boosted_data, self.device)
+                    boosted_divergence = self.agent.compute_divergence(
+                        self.expert_loader, boosted_data
+                    )
                 eval_counter += 1
 
             # ========== BOOSTING ==========
@@ -296,7 +349,9 @@ class Workspace:
                     self.disc_replay_iter, self.expert_iter
                 )
 
-                wandb.log(disc_metrics)
+                # Log
+                if self.cfg.wandb:
+                    wandb.log(disc_metrics)
 
                 # Reset Policy
                 if self.cfg.reset_policy:
@@ -330,10 +385,19 @@ class Workspace:
                 else:
                     metrics = self.agent.update(self.replay_iter, self.global_step)
 
+                # Logging
+                metrics["eval/eval_return"] = eval_return
                 metrics["eval/custom_step"] = eval_counter
-                metrics["eval/divergence"] = divergence
+                metrics["eval/on_policy_divergence"] = divergence
+
+                if self.cfg.agent.name == "boosting":
+                    metrics["eval/boosting_divergence"] = boosted_divergence
+                    metrics["eval/boosting_return"] = boosted_eval_return
+
                 self.logger.log_metrics(metrics, self.global_frame, ty="train")
-                wandb.log(metrics)
+
+                if self.cfg.wandb:
+                    wandb.log(metrics)
 
             # Env Step
             time_step = self.train_env.step(action)

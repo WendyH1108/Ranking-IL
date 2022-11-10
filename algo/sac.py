@@ -55,6 +55,15 @@ class SACAgent:
             log_std_bounds,
         ).to(device)
 
+        self.eval_actor = StochasticActor(
+            obs_shape[0],
+            action_dim,
+            feature_dim,
+            actor_hidden_dims,
+            actor_spectral_norms,
+            log_std_bounds,
+        ).to(device)
+
         self.critic = DoubleQCritic(
             obs_type,
             obs_shape[0],
