@@ -22,6 +22,9 @@ warnings.filterwarnings("ignore", category=UserWarning)
 os.environ["MKL_SERVICE_FORCE_INTEL"] = "1"
 os.environ["MUJOCO_GL"] = "egl"
 os.environ["PYOPENGL_PLATFORM"] = ""
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+torch.set_num_threads(1)
 torch.backends.cudnn.benchmark = True
 
 
@@ -91,7 +94,7 @@ class Workspace:
         if self.cfg.agent.name == "dac" or self.cfg.agent.name == "boosting":
             demos_path = self.cfg.expert_dir + self.cfg.suite.task + "_10.pkl"
             self.expert_loader = make_expert_replay_loader(
-                demos_path, self.cfg.num_demos, self.cfg.agent.batch_size
+                demos_path, self.cfg.num_demos, self.cfg.agent.batch_size, n_workers=self.cfg.replay_buffer_num_workers
             )
             self.expert_iter = iter(self.expert_loader)
 
@@ -354,6 +357,7 @@ class Workspace:
             # ========== BOOSTING ==========
             if (
                 self.cfg.agent.name == "boosting"
+                and self.global_step >= self.cfg.suite.num_seed_steps
                 and self.global_step % self.cfg.policy_iter == 0
             ):
                 # Add Samples

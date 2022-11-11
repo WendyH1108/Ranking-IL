@@ -7,7 +7,8 @@ device: ${device}
 feature_dim: ???
 algo: ${algo}
 representation: rl_encoder
-disc_hidden_dim: 512
+#disc_hidden_dim: 512
+disc_hidden_dim: 64
 disc_type: ${disc_type}
 disc_update_iter: ${disc_iter}
 n_learners: ${n_learners}

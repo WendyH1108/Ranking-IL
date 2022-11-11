@@ -22,7 +22,7 @@ num_demos: 10
 # replay buffer
 replay_buffer_size: ${suite.num_train_steps}
 #replay_buffer_num_workers: 6
-replay_buffer_num_workers: 4
+replay_buffer_num_workers: 2
 nstep: ${algo.nstep}
 batch_size: ${algo.batch_size}
 discount: ${suite.discount}

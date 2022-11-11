@@ -553,12 +553,12 @@ class ExpertReplayBuffer(IterableDataset):
             yield self._sample()
 
 
-def make_expert_replay_loader(dataset_path, num_demos, batch_size):
+def make_expert_replay_loader(dataset_path, num_demos, batch_size, n_workers=2):
     iterable = ExpertReplayBuffer(dataset_path, num_demos)
     loader = torch.utils.data.DataLoader(
         iterable,
         batch_size=batch_size,
-        num_workers=0,
+        num_workers=n_workers,
         pin_memory=True,
         worker_init_fn=_worker_init_fn,
     )
