@@ -53,6 +53,7 @@ class Workspace:
         self._global_step = 0
         self._global_episode = 0
         self._best_eval_return = -float("inf")
+        self._sample_offset = 0
 
     def setup(self):
 
@@ -135,7 +136,7 @@ class Workspace:
 
     @property
     def global_frame(self):
-        return self.global_step * self.cfg.suite.action_repeat
+        return (self.global_step + self._sample_offset) * self.cfg.suite.action_repeat
 
     @property
     def best_eval_return(self):
@@ -171,6 +172,7 @@ class Workspace:
                 time_step = self.eval_env.step(action)
                 self.disc_buffer.add(time_step)
                 samples += 1
+        self._sample_offset += self.cfg.n_samples
 
     def boosted_eval(self):
         step, episode, total_reward = 0, 0, 0
@@ -266,7 +268,7 @@ class Workspace:
             log("episode_return", total_reward / episode)
             log("episode_length", step * self.cfg.suite.action_repeat / episode)
             log("episode", self.global_episode)
-            log("step", self.global_step)
+            log("step", self.global_step + self._sample_offset)
             log("total_time", self.timer.total_time())
 
         return total_reward / episode, (
@@ -309,7 +311,7 @@ class Workspace:
                         log("episode_reward", episode_reward)
                         log("episode_length", episode_frame)
                         log("episode", self.global_episode)
-                        log("step", self.global_step)
+                        log("step", self.global_step + self._sample_offset)
                         # if repr(self.agent) == "offline_imitation":
                         #     log("episode_imitation_return", imitation_return)
                     if self.cfg.wandb:
@@ -320,7 +322,8 @@ class Workspace:
                                 "train/episode_reward": episode_reward,
                                 "train/episode_length": episode_frame,
                                 "train/episode": self.global_episode,
-                                "train/global_step": self.global_step,
+                                "train/global_step": self.global_step + self._sample_offset,
+                                "train/global_frame": self.global_frame,
                             }
                         )
 
@@ -361,7 +364,7 @@ class Workspace:
                 and self.global_step % self.cfg.policy_iter == 0
             ):
                 # Add Samples
-                self.collect_samples()
+                self.collect_samples() # adds to smaple complexity
                 self.disc_buffer.get_weights()
                 # Update Disc
                 disc_metrics = self.agent.update_discriminator(
