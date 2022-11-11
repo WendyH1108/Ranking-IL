@@ -4,9 +4,9 @@ name: boosting
 batch_size: ${algo.batch_size}
 task: ${suite.task}
 device: ${device}
-feature_dim: ${feature_dim}
+feature_dim: ???
 algo: ${algo}
-representation: discriminator
+representation: rl_encoder
 disc_hidden_dim: 512
 disc_type: ${disc_type}
 disc_update_iter: ${disc_iter}

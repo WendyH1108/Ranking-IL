@@ -108,6 +108,18 @@ class Workspace:
             self._disc_replay_iter = None
             self.cfg.n_learners = self.cfg.replay_buffer_size // self.cfg.n_samples
 
+            #TODO: Make this compatible with Images....state vector for now
+            if self.cfg.agent.disc_type == 'sa':
+                self.cfg.agent.feature_dim = obs_spec.shape[0] + n_action
+            elif self.cfg.agent.disc_type == 'ss':
+                self.cfg.agent.feature_dim = 2 * obs_spec.shape[0]
+            elif self.cfg.agent.disc_type == 's':
+                self.cfg.agent.feature_dim = obs_spec.shape[0]
+            elif self.cfg.agent.disc_type == 'sas':
+                self.cfg.agent.feature_dim = 2* obs_spec.shape[0] + n_action
+            else:
+                raise NotImplementedError("Discriminator Input not supported")
+
         self._replay_iter = None
 
     @property

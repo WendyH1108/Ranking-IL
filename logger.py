@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import torchvision
 from termcolor import colored
-from torch.utils.tensorboard import SummaryWriter
+#from torch.utils.tensorboard import SummaryWriter
 
 COMMON_TRAIN_FORMAT = [
     ("step", "S", "int"),

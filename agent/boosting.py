@@ -49,13 +49,6 @@ class BoostingAgent(Agent):
             self.discriminator = Discriminator(
                 feature_dim, disc_hidden_dim, enc_in_dim
             ).to(device)
-            self.discriminator_reward = Discriminator(
-                feature_dim, disc_hidden_dim, enc_in_dim
-            ).to(device)
-
-        # self.expert_buffer = iter(
-        #    make_expert_replay_loader(demos_path, num_demos, batch_size)
-        # )
 
         self.discriminator_opt = torch.optim.Adam(
             self.discriminator.parameters(), lr=self.policy.lr, maximize=True
@@ -65,7 +58,6 @@ class BoostingAgent(Agent):
         self.device = device
         self.batch_size = batch_size
         self.learners = deque(maxlen=n_learners)
-        self.eval_policy = 
 
     def __repr__(self):
         return "boosting"
@@ -91,12 +83,14 @@ class BoostingAgent(Agent):
 
     def sample_learner(self, weights):
         """ Returns a policy from ensemble of policies """
-        sampled_weights = np.choice(self.learners, p=weights)
+        if len(self.learners) == 0:
+            return
+        sampled_weights = np.random.choice(self.learners, p=weights)
         self.policy.eval_actor.load_state_dict(sampled_weights)
     
     @torch.no_grad()
     def boosted_act(self, obs):
-        obs = torch.as_tensor(obs, devic=self.device).unsqueeze(0)
+        obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
         dist = self.policy.eval_actor(obs)
         action = dist.mean
         return action.cpu().numpy()[0]

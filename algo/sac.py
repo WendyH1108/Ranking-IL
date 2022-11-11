@@ -64,6 +64,8 @@ class SACAgent:
             log_std_bounds,
         ).to(device)
 
+        self.eval_actor.load_state_dict(self.actor.state_dict())
+
         self.critic = DoubleQCritic(
             obs_type,
             obs_shape[0],
