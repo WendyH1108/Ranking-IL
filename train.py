@@ -183,7 +183,7 @@ class Workspace:
         # For boosting
         policy_weights = self.disc_buffer.get_learner_weights()
 
-        while episode < self.cfg.suite.num_eval_episodes:
+        while episode < self.cfg.suite.boosting_num_eval_episodes:
             ep_rew = 0
 
             # Sample Learner/Policy
@@ -461,7 +461,8 @@ def main(cfg):
     project_name = "Ranking-IL"
     entity = "kaiwenw_rep_offline_rl"
     ts = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
-    name = f"{ts}"
+    #name = f"{ts}"
+    name = f"{ts}_{cfg.experiment}"
     snapshot = w.work_dir / "snapshot.pt"
     if snapshot.exists():
         print(f"resuming: {snapshot}")

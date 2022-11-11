@@ -1,6 +1,6 @@
 # @package suite
 suite: dmc
-task: cheetah_run
+task: walker_walk
 obs_type: states # {states, pixels}
 
 discount: 0.99
@@ -11,7 +11,8 @@ num_seed_steps: 6000
 
 # eval
 eval_every_steps: 25000
-num_eval_episodes: 10
+num_eval_episodes: 5
+boosting_num_eval_episodes: 20
 
 save_snapshot: true
 frame_stack: 3
