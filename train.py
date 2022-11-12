@@ -363,6 +363,9 @@ class Workspace:
                 and self.global_step >= self.cfg.suite.num_seed_steps
                 and self.global_step % self.cfg.policy_iter == 0
             ):
+
+                # Add Learner to Boosting
+                self.agent.add_learner()
                 # Add Samples
                 self.collect_samples() # adds to smaple complexity
                 self.disc_buffer.get_weights()

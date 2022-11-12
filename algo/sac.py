@@ -40,7 +40,8 @@ class SACAgent:
         self.action_dim = action_dim
         self.critic_target_tau = critic_target_tau
         self.update_every_steps = update_every_steps
-        self.use_tb = use_tb
+        #self.use_tb = use_tb
+        self.use_tb = True
         self.num_expl_steps = num_expl_steps
         self.batch_size = batch_size
         self.lr = lr
