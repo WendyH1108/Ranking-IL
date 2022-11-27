@@ -27,8 +27,6 @@ class DACAgent(Agent):
         representation,
         disc_hidden_dim,
         disc_type,
-        discriminator_iter,
-        policy_iter,
     ):
 
         super().__init__(name, task, device, algo)
@@ -49,9 +47,6 @@ class DACAgent(Agent):
             self.discriminator = Discriminator(
                 feature_dim, disc_hidden_dim, enc_in_dim
             ).to(device)
-            self.discriminator_reward = Discriminator(
-                feature_dim, disc_hidden_dim, enc_in_dim
-            ).to(device)
 
         # self.expert_buffer = iter(
         #    make_expert_replay_loader(demos_path, num_demos, batch_size)
@@ -64,8 +59,6 @@ class DACAgent(Agent):
         self.reward_mode = reward_mode
         self.device = device
         self.batch_size = batch_size
-        self.discriminator_iter = discriminator_iter
-        self.policy_iter = policy_iter
         self.discriminator_list = []
 
     def __repr__(self):
@@ -153,7 +146,7 @@ class DACAgent(Agent):
         #     policy_obs = policy_obs.reshape(size,policy_obs.shape[0]//size)
         #     policy_actions = policy_actions.reshape(size,policy_actions.shape[0]//size)
         policy_obs = obs[: self.batch_size // 2]
-        policy_actions = np.squeeze(expert_actions, axis=1)[: self.batch_size // 2]
+        policy_actions = np.squeeze(actions, axis=1)[: self.batch_size // 2]
 
         with torch.no_grad():
             if self.disc_type == "ss":
@@ -305,21 +298,18 @@ class DACAgent(Agent):
 
         # Disciminator Update
         # def update_discriminator(self, batch, expert_loader, expert_iter, on_policy_data, step):
-        self.policy.reset_step()
-        for _ in range(self.discriminator_iter):
-            batch = next(replay_iter)
-            batch = utils.to_torch(batch, self.device)
-            metrics.update(
-                self.update_discriminator(batch, expert_loader, expert_iter, step)
-            )
+
+        batch = next(replay_iter)
+        batch = utils.to_torch(batch, self.device)
+
+        # Discriminator Update
+        metrics.update(
+            self.update_discriminator(batch, expert_loader, expert_iter, step)
+        )
 
         # Policy Update
-        for _ in range(self.policy_iter):
-            batch = next(replay_iter)
-            batch = utils.to_torch(batch, self.device)
-            metrics.update(self.policy.update(batch, step))
+        metrics.update(self.policy.update(batch, step))
 
-        # metrics update ?
         return metrics
 
     # if __name__ == '__main__':
