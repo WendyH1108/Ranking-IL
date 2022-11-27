@@ -156,31 +156,32 @@ class DACAgent(Agent):
                 policy_obs_next = obs_next[: self.batch_size // 2]
                 expert_obs = torch.cat([expert_obs, expert_obs_next], dim=1)
                 policy_obs = torch.cat([policy_obs, policy_obs_next], dim=1)
+            # TODO: fix logic here for images
             disc_input = torch.cat([expert_obs, policy_obs], dim=0)
+
+            if self.policy.obs_type == "pixels":
+                disc_input = self.encode(disc_input)
 
             if self.disc_type == "sa":
                 expert_data = torch.cat([expert_obs, expert_actions], dim=1)
                 policy_data = torch.cat([policy_obs, policy_actions], dim=1)
+                disc_input = torch.cat([expert_data, policy_data], dim=0)
 
-        if self.policy.obs_type == "pixels":
-            with torch.no_grad():
-                disc_input = self.encode(disc_input)
-
-        # disc_output = self.discriminator(disc_input, encode=False)
+        disc_output = self.discriminator(disc_input, encode=False)
         # CHANGE HERE
-        # ones = torch.ones(batch_size, device=self.device)
-        # zeros = torch.zeros(batch_size, device=self.device)
-        # disc_label = torch.cat([ones, zeros]).unsqueeze(dim=1)
-        # # add constraint here
-        # dac_loss = F.binary_cross_entropy_with_logits(
-        #     disc_output, disc_label, reduction="sum"
-        # )
+        ones = torch.ones(batch_size, device=self.device)
+        zeros = torch.zeros(batch_size, device=self.device)
+        disc_label = torch.cat([ones, zeros]).unsqueeze(dim=1)
+        # add constraint here
+        dac_loss = F.binary_cross_entropy_with_logits(
+            disc_output, disc_label, reduction="sum"
+        )
         # dis_expert = self.discriminator(expert_traj,encode=False)
         # dis_policy = self.discriminator(policy_traj,encode=False)
 
-        dac_loss = torch.mean(
-            self.discriminator(expert_data, encode=False)
-        ) - torch.mean(self.discriminator(policy_data, encode=False))
+        #dac_loss = torch.mean(
+        #    self.discriminator(expert_data, encode=False)
+        #) - torch.mean(self.discriminator(policy_data, encode=False))
         dac_loss /= batch_size
         metrics["train/disc_loss"] = dac_loss.mean().item()
 
@@ -200,14 +201,13 @@ class DACAgent(Agent):
         # metrics["divergence"] = torch.mean(self.discriminator(expert_traj,encode=False)) - torch.mean(self.discriminator(policy_traj,encode=False))
 
         self.discriminator_opt.zero_grad(set_to_none=True)
-        dac_loss = -dac_loss
         dac_loss.backward()
         grad_pen.backward()
         self.discriminator_opt.step()
-        if step % 1000 == 0:
-            if len(self.discriminator_list) == 20:
-                self.discriminator_list = self.discriminator_list[1:]
-            self.discriminator_list.append(self.discriminator.state_dict())
+        #if step % 1000 == 0:
+        #    if len(self.discriminator_list) == 20:
+        #        self.discriminator_list = self.discriminator_list[1:]
+        #    self.discriminator_list.append(self.discriminator.state_dict())
         return metrics
 
     def collect_policy_batch(self, env, step, buffer):
