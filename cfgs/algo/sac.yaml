@@ -12,10 +12,10 @@ log_std_bounds: [-20, 2]
 critic_target_tau: 5e-3
 critic_use_ln: false
 #critic_hidden_dims: [1024, 1024] #[512, 512, 256]
-critic_hidden_dims: [64, 64] #[512, 512, 256]
+critic_hidden_dims: [256, 256] #[512, 512, 256]
 critic_spectral_norms: [false, false]
 # actor_hidden_dims: [1024, 1024] #[256, 256, 256]
-actor_hidden_dims: [64, 64] #[256, 256, 256]
+actor_hidden_dims: [256, 256] #[256, 256, 256]
 feature_dim: 50
 actor_use_ln: false
 actor_spectral_norms: [false, false]

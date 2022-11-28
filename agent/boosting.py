@@ -75,8 +75,10 @@ class BoostingAgent(Agent):
             d = self.discriminator(obs)
         return d.flatten().detach().reshape(-1, 1)
 
-    def reset_policy(self):
+    def reset_policy(self, reinit_policy=False):
         self.policy.reset_noise()
+        if reinit_policy:
+            self.policy.reinit_policy()
 
     def add_learner(self):
         self.learners.append(self.policy.actor.state_dict())

@@ -46,6 +46,11 @@ class SACAgent:
         self.batch_size = batch_size
         self.lr = lr
 
+        self.feature_dim = feature_dim
+        self.actor_hidden_dims = actor_hidden_dims
+        self.actor_spectral_norms = actor_spectral_norms
+        self.log_std_bounds = log_std_bounds
+
         # models
         self.actor = StochasticActor(
             obs_shape[0],
@@ -151,6 +156,17 @@ class SACAgent:
         )
         self.log_alpha.requires_grad = True
         self.alpha_opt = torch.optim.Adam([self.log_alpha], lr=self.lr)
+
+    def reinit_policy(self):
+        self.actor = StochasticActor(
+            self.obs_shape[0],
+            self.action_dim,
+            self.feature_dim,
+            self.actor_hidden_dims,
+            self.actor_spectral_norms,
+            self.log_std_bounds,
+        ).to(self.device)
+        self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=self.lr)
 
     def update_actor_and_alpha(self, obs, step):
         metrics = dict()

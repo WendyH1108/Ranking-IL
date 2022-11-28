@@ -112,6 +112,7 @@ class Workspace:
             self._disc_replay_iter = None
             self.cfg.n_learners = self.cfg.replay_buffer_size // self.cfg.n_samples
 
+        if self.cfg.agent.name == "boosting" or self.cfg.agent.name == "dac":
             #TODO: Make this compatible with Images....state vector for now
             if self.cfg.agent.disc_type == 'sa':
                 self.cfg.agent.feature_dim = obs_spec.shape[0] + n_action
@@ -380,7 +381,7 @@ class Workspace:
 
                 # Reset Policy
                 if self.cfg.reset_policy:
-                    self.agent.reset_policy()
+                    self.agent.reset_policy(reinit_policy=self.cfg.reinit_policy)
 
                 # Reset Buffer
                 self.buffer.load_buffer(*self.disc_buffer.get_buffer())
