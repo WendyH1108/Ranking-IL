@@ -51,7 +51,7 @@ class BoostingAgent(Agent):
             ).to(device)
 
         self.discriminator_opt = torch.optim.Adam(
-            self.discriminator.parameters(), lr=self.policy.lr, maximize=True
+            self.discriminator.parameters(), lr=self.policy.lr, maximize=False
         )
 
         self.disc_update_iter = disc_update_iter
@@ -122,17 +122,23 @@ class BoostingAgent(Agent):
             expert_data, policy_data = utils.to_torch(
                 (expert_data, policy_data), self.device
             )
-
-            dac_loss = torch.mean(
-                self.discriminator(expert_data, encode=False)
-            ) - torch.mean(self.discriminator(policy_data, encode=False))
+            disc_input = torch.cat([expert_data, policy_data], dim=0)
+            # dac_loss = torch.mean(
+            #     self.discriminator(expert_data, encode=False)
+            # ) - torch.mean(self.discriminator(policy_data, encode=False))
+            disc_output = self.discriminator(disc_input, encode=False)
+            ones = torch.ones(batch_size, device=self.device)
+            zeros = torch.zeros(batch_size, device=self.device)
+            disc_label = torch.cat([ones, zeros]).unsqueeze(dim=1)
+            dac_loss = F.binary_cross_entropy_with_logits(
+                disc_output, disc_label, reduction="sum")
             dac_loss /= batch_size
 
             grad_pen = utils.compute_gradient_penalty(
                 self.discriminator, expert_data, policy_data
             )
             grad_pen /= batch_size
-            grad_pen *= -1
+            # grad_pen *= -1
 
             self.discriminator_opt.zero_grad(set_to_none=True)
             dac_loss.backward()
