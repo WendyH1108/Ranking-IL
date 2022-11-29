@@ -11,5 +11,5 @@
 source /share/apps/anaconda3/2020.11/etc/profile.d/conda.sh
 conda activate milov2
 cd /home/jdc396/Ranking-IL
-python train.py experiment=dac_baseline_$1 suite.task=$1 agent=dac algo=sac expert_dir=/home/jdc396/Ranking-IL/expert_sac/ agent.disc_type=sa
+python train.py experiment=dac_$1_$2 seed=$2 suite.task=$1 agent=dac algo=sac expert_dir=/home/jdc396/Ranking-IL/expert_sac/ agent.disc_type=sa
     

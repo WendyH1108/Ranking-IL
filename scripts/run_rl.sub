@@ -3,7 +3,7 @@
 #SBATCH -o /home/jdc396/slurm/logs/%j.out
 #SBATCH -e /home/jdc396/slurm/logs/%j.err
 #SBATCH -N 1
-#SBATCH -n 2
+#SBATCH -n 4
 #SBATCH --mem=30G
 #SBATCH -t 48:00:00
 #SBATCH --partition=default_partition
@@ -11,5 +11,5 @@
 source /share/apps/anaconda3/2020.11/etc/profile.d/conda.sh
 conda activate milov2
 cd /home/jdc396/Ranking-IL
-python train.py experiment=eta_0.05_disc_5000_policy_iter_$1 suite.task=walker_walk agent=boosting algo=sac eta=0.05 expert_dir=/home/jdc396/Ranking-IL/expert_sac/ disc_iter=5000 policy_iter=$1 agent.disc_type=sa
+python train.py experiment=$2_$1 agent=rl suite.task=$1 algo=$2
     

@@ -75,25 +75,25 @@ class DACAgent(Agent):
             obs = self.encode(obs)
         with torch.no_grad():
             with utils.eval_mode(self.discriminator):
-                if not fictitious:
-                    d = self.discriminator(obs)
-                # s = torch.sigmoid(d)
+                #if not fictitious:
+                d = self.discriminator(obs)
+                s = torch.sigmoid(d)
                 # # Mixture Reward....
                 # # rewards = s.log() - (1 - s).log()
 
                 # # Survival Bias (i.e. GAIL/DAC reward)
-                # rewards = -(1 - s).log()
-                else:
-                    reward_list = []
-                    for dis_state in self.discriminator_list:
-                        self.discriminator_reward.load_state_dict(dis_state)
-                        reward_list.append(self.discriminator_reward(obs))
-                    if len(reward_list) != 0:
-                        d = sum(reward_list) / len(reward_list)
-                    else:
-                        d = self.discriminator(obs)
+                #rewards = -(1 - s).log()
+                rewards = d # AIRL
+                #else:
+                #    reward_list = []
+                #    for dis_state in self.discriminator_list:
+                #        self.discriminator_reward.load_state_dict(dis_state)
+                #        reward_list.append(self.discriminator_reward(obs))
+                #    if len(reward_list) != 0:
+                #        d = sum(reward_list) / len(reward_list)
+                #    else:
+                #        d = self.discriminator(obs)
 
-            rewards = d
             return rewards.flatten().detach().reshape(-1, 1)
             # return d
 

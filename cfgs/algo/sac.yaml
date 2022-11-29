@@ -7,7 +7,7 @@ action_dim: ??? # to be specified later
 device: ${device}
 lr: 3e-4
 batch_size: 128
-nstep: 1
+nstep: 3
 log_std_bounds: [-20, 2]
 critic_target_tau: 5e-3
 critic_use_ln: false
