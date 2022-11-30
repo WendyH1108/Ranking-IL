@@ -158,14 +158,14 @@ class SACAgent:
         self.alpha_opt = torch.optim.Adam([self.log_alpha], lr=self.lr)
 
     def reinit_policy(self):
-        self.actor = StochasticActor(
-            self.obs_shape[0],
-            self.action_dim,
-            self.feature_dim,
-            self.actor_hidden_dims,
-            self.actor_spectral_norms,
-            self.log_std_bounds,
-        ).to(self.device)
+        #self.actor = StochasticActor(
+        #    self.obs_shape[0],
+        #    self.action_dim,
+        #    self.feature_dim,
+        #    self.actor_hidden_dims,
+        #    self.actor_spectral_norms,
+        #    self.log_std_bounds,
+        #).to(self.device)
         self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=self.lr)
 
     def update_actor_and_alpha(self, obs, step):

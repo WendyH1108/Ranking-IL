@@ -207,5 +207,6 @@ class DDPGAgent:
     def aug_and_encode(self, obs):
         obs = self.aug(obs)
         return self.encoder(obs)
+
     def reset_step(self):
         self.internal_step = 0
