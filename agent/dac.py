@@ -27,11 +27,14 @@ class DACAgent(Agent):
         representation,
         disc_hidden_dim,
         disc_type,
+        divergence
     ):
 
         super().__init__(name, task, device, algo)
         assert disc_type == "s" or disc_type == "ss" or disc_type == "sa"
         self.disc_type = disc_type  # r(s) or r(s, s')
+        
+        self.divergence = divergence
 
         # demos_path = expert_dir + task + "/expert_demos.pkl"
 
@@ -168,21 +171,29 @@ class DACAgent(Agent):
                 disc_input = torch.cat([expert_data, policy_data], dim=0)
 
         disc_output = self.discriminator(disc_input, encode=False)
-        # CHANGE HERE
-        ones = torch.ones(batch_size, device=self.device)
-        zeros = torch.zeros(batch_size, device=self.device)
-        disc_label = torch.cat([ones, zeros]).unsqueeze(dim=1)
-        # add constraint here
-        dac_loss = F.binary_cross_entropy_with_logits(
-            disc_output, disc_label, reduction="sum"
-        )
+
+        if self.divergence == 'js':
+            ones = torch.ones(batch_size, device=self.device)
+            zeros = torch.zeros(batch_size, device=self.device)
+            disc_label = torch.cat([ones, zeros]).unsqueeze(dim=1)
+            # add constraint here
+            dac_loss = F.binary_cross_entropy_with_logits(
+                disc_output, disc_label, reduction="sum"
+            )
+            dac_loss /= batch_size
+        elif self.divergence == 'rkl':
+            disc_expert, disc_policy = torch.split(disc_output, batch_size, dim=0)
+            dac_loss = torch.mean(torch.exp(-disc_expert) + disc_policy)
+        elif self.divergence == 'wass':
+            disc_expert, disc_policy = torch.split(disc_output, batch_size, dim=0)
+            dac_loss = torch.mean(disc_policy - disc_expert)
+            
         # dis_expert = self.discriminator(expert_traj,encode=False)
         # dis_policy = self.discriminator(policy_traj,encode=False)
 
         #dac_loss = torch.mean(
         #    self.discriminator(expert_data, encode=False)
         #) - torch.mean(self.discriminator(policy_data, encode=False))
-        dac_loss /= batch_size
         metrics["train/disc_loss"] = dac_loss.mean().item()
 
         # expert_obs, policy_obs = torch.split(disc_input, batch_size, dim=0)
