@@ -30,6 +30,7 @@ class BoostingAgent(Agent):
         disc_update_iter,
         n_learners,
         discount,
+        divergence,
     ):
 
         super().__init__(name, task, device, algo)
@@ -37,8 +38,9 @@ class BoostingAgent(Agent):
         self.disc_type = disc_type  # r(s), r(s, s'), r(s, a)
 
         # demos_path = expert_dir + task + "/expert_demos.pkl"
-
+        self.divergence = divergence
         self.representation = representation
+
         if self.representation == "rl_encoder":
             self.discriminator = Discriminator(feature_dim, disc_hidden_dim).to(device)
         elif self.representation == "discriminator":

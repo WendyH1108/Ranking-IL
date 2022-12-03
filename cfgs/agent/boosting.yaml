@@ -13,3 +13,4 @@ disc_type: ${disc_type}
 disc_update_iter: ${disc_iter}
 n_learners: ${n_learners}
 discount: ${discount}
+divergence: rkl
