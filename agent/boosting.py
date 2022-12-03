@@ -123,17 +123,26 @@ class BoostingAgent(Agent):
                 (expert_data, policy_data), self.device
             )
             disc_input = torch.cat([expert_data, policy_data], dim=0)
-            # dac_loss = torch.mean(
-            #     self.discriminator(expert_data, encode=False)
-            # ) - torch.mean(self.discriminator(policy_data, encode=False))
             disc_output = self.discriminator(disc_input, encode=False)
-            ones = torch.ones(batch_size, device=self.device)
-            zeros = torch.zeros(batch_size, device=self.device)
-            disc_label = torch.cat([ones, zeros]).unsqueeze(dim=1)
-            dac_loss = F.binary_cross_entropy_with_logits(
-                disc_output, disc_label, reduction="sum")
-            dac_loss /= batch_size
-
+            
+            if self.divergence == 'js':
+                ones = torch.ones(batch_size, device=self.device)
+                zeros = torch.zeros(batch_size, device=self.device)
+                disc_label = torch.cat([ones, zeros]).unsqueeze(dim=1)
+                # add constraint here
+                dac_loss = F.binary_cross_entropy_with_logits(
+                    disc_output, disc_label, reduction="sum"
+                )
+                dac_loss /= batch_size
+            elif self.divergence == 'rkl':
+                disc_expert, disc_policy = torch.split(disc_output, batch_size, dim=0)
+                dac_loss = torch.mean(torch.exp(-disc_expert) + disc_policy)
+            elif self.divergence == 'wass':
+                disc_expert, disc_policy = torch.split(disc_output, batch_size, dim=0)
+                dac_loss = torch.mean(disc_policy - disc_expert)
+                
+            metrics["train/disc_loss"] = dac_loss.mean().item()
+            
             grad_pen = utils.compute_gradient_penalty(
                 self.discriminator, expert_data, policy_data
             )
@@ -144,9 +153,6 @@ class BoostingAgent(Agent):
             dac_loss.backward()
             grad_pen.backward()
             self.discriminator_opt.step()
-
-            # Logging
-            metrics["train/disc_loss"] = dac_loss.mean().item()
 
         return metrics
 
