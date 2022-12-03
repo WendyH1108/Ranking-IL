@@ -18,6 +18,10 @@ def episode_len(episode):
     return next(iter(episode.values())).shape[0] - 1
 
 
+def expert_len(episode):
+    return next(iter(episode.values())).shape[0]
+
+
 def save_episode(episode, fn):
     with io.BytesIO() as bs:
         np.savez_compressed(bs, **episode)
@@ -246,6 +250,8 @@ class ReplayBufferLocal(IterableDataset):
         fetch_every,
         save_snapshot,
         return_one_step,
+        eta=None,
+        n_episodes=None,
     ):
         self._storage = storage
         self._size = 0
@@ -259,6 +265,57 @@ class ReplayBufferLocal(IterableDataset):
         self._samples_since_last_fetch = fetch_every
         self._save_snapshot = save_snapshot
         self._return_one_step = return_one_step
+
+        # Boosting Specific
+        self._eta = eta
+        self._n_episodes = n_episodes
+
+        if self._eta is not None:
+            assert self._n_episodes is not None
+
+            self._weights = None
+
+    def get_learner_weights(self):
+        # For evaluation
+
+        if self._weights is None:
+            return None
+
+        policy_weights = np.unique(self._weights * self._n_samples)
+        policy_weights.sort()
+
+        # In accending order
+        return policy_weights
+
+    def get_weights(self):
+        n_learners = len(self) // self._n_samples
+
+        # Uniform Sampling
+        if n_learners < 2:
+            self._weights = None
+            return
+
+        # This is the case when n_learners = 2
+        if self._weights is None:
+            uniform_weights = np.full(
+                (len(self)), 1 / self._n_samples, dtype=np.float32
+            )
+            uniform_weights[: self._n_samples] *= 1 - self._eta
+            uniform_weights[self._n_samples : self._idx] *= self._eta
+            self._weights = uniform_weights
+            return
+
+        # Polyak Averaging for every weak_learner added
+        self._weights *= 1 - self._eta
+        new_weights = np.full(
+            (self._n_samples), self._eta / self._n_samples, dtype=np.float32
+        )
+        if not self._full:
+            self._weights = np.concatenate([self._weights, new_weights])
+            return
+
+        self._weights[self._idx - self._n_samples : self._idx] = new_weights
+        self._weights[self._idx : self._idx + self._n_samples] /= self._eta
 
     def _sample_episode(self):
         eps_fn = random.choice(self._episode_fns)
@@ -351,6 +408,17 @@ class ReplayBufferMemory:
         for spec in specs:
             self._items[spec.name] = np.empty((max_size, *spec.shape), dtype=spec.dtype)
 
+        # Save the intermediates for on-policy calculation....
+        if nstep > 1:
+            for i in range(1, nstep):
+                self._items[f"obs_{i}"] = np.empty(
+                    (max_size, *specs["observation"].shape),
+                    dtype=specs["observation"].dtype,
+                )
+                self._items[f"act_{i}"] = np.empty(
+                    (max_size, *specs["action"].shape), dtype=specs["action"].dtype
+                )
+
         self._eta = eta
         self._n_samples = n_samples
 
@@ -429,6 +497,16 @@ class ReplayBufferMemory:
             np.copyto(
                 self._items["next_observation"][self._idx], self._queue[-1].observation
             )
+
+            if self._nstep > 1:
+                for i in range(1, self._nstep):
+                    np.copyto(
+                        self._item[f"obs_{i}"][self._idx], self.queue[i].observation
+                    )
+                    np.copyto(
+                        self._item[f"act_{i}"][self._idx], self.queue[i + 1].action
+                    )
+
             reward, discount = 0.0, 1.0
             self._queue.popleft()
             for ts in self._queue:
@@ -451,6 +529,16 @@ class ReplayBufferMemory:
                 np.arange(len(self)), size=self._batch_size, p=self._weights
             )
         batch = tuple(self._items[spec.name][idxs] for spec in self._specs)
+
+        # NOTE: Not eta since this is just for Policy
+        if not self._eta and self._nstep > 1:
+            int_obs = tuple(
+                self._items[f"obs_{i}"][idxs] for i in range(1, self._nstep)
+            )
+            int_act = tuple(
+                self._items[f"act_{i}"][idxs] for i in range(1, self._nstep)
+            )
+            batch = batch + int_obs + int_act
         return batch
 
     def __iter__(self):
@@ -517,7 +605,7 @@ class ExpertReplayBuffer(IterableDataset):
     Used for Adversarial IL type algorithms
     """
 
-    def __init__(self, dataset_path, num_demos):
+    def __init__(self, dataset_path, num_demos, n_step):
         # Load Expert Demos
         with open(dataset_path, "rb") as f:
             data = pkl.load(f)
@@ -525,6 +613,7 @@ class ExpertReplayBuffer(IterableDataset):
             obs, act = np.array(data["states"]), np.array(data["actions"])
         self.obs = obs
         self.act = act
+        self.n_step = n_step
         self._episodes = []
         for i in range(num_demos):
             episode = dict(observation=obs[i], action=act[i])
@@ -537,15 +626,19 @@ class ExpertReplayBuffer(IterableDataset):
 
     def _sample(self):
         episode = self._sample_episode()
-        idx = np.random.randint(0, episode_len(episode)) + 1
+        idx = np.random.randint(0, expert_len(episode) - self.n_step)
         obs = episode["observation"][idx]
         action = episode["action"][idx]
         # if len(action.shape) == 3:
         #     action = np.squeeze(action, axis=1)
-        if idx == len(episode["observation"]) - 1:
-            next_obs = np.zeros_like(episode["observation"][0])
-        else:
-            next_obs = episode["observation"][idx + 1]
+        next_obs = episode["observation"][idx + self.n_step]
+        if self.n_step > 1:
+            int_obs = []
+            int_act = []
+            for i in range(1, self.n_step):
+                int_obs.append(episode["observation"][idx + i])
+                int_act.append(episode["action"][idx + i])
+            return (obs, action, next_obs) + tuple(int_obs) + tuple(int_act)
         return (obs, action, next_obs)
 
     def __iter__(self):
@@ -553,8 +646,8 @@ class ExpertReplayBuffer(IterableDataset):
             yield self._sample()
 
 
-def make_expert_replay_loader(dataset_path, num_demos, batch_size, n_workers=2):
-    iterable = ExpertReplayBuffer(dataset_path, num_demos)
+def make_expert_replay_loader(dataset_path, num_demos, batch_size, n_step, n_workers=2):
+    iterable = ExpertReplayBuffer(dataset_path, num_demos, n_step)
     loader = torch.utils.data.DataLoader(
         iterable,
         batch_size=batch_size,

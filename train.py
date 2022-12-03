@@ -22,8 +22,8 @@ warnings.filterwarnings("ignore", category=UserWarning)
 os.environ["MKL_SERVICE_FORCE_INTEL"] = "1"
 os.environ["MUJOCO_GL"] = "egl"
 os.environ["PYOPENGL_PLATFORM"] = ""
-os.environ['OMP_NUM_THREADS'] = '1'
-os.environ['MKL_NUM_THREADS'] = '1'
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
 torch.set_num_threads(1)
 torch.backends.cudnn.benchmark = True
 
@@ -95,7 +95,11 @@ class Workspace:
         if self.cfg.agent.name == "dac" or self.cfg.agent.name == "boosting":
             demos_path = self.cfg.expert_dir + self.cfg.suite.task + "_10.pkl"
             self.expert_loader = make_expert_replay_loader(
-                demos_path, self.cfg.num_demos, self.cfg.agent.batch_size, n_workers=self.cfg.replay_buffer_num_workers
+                demos_path,
+                self.cfg.num_demos,
+                self.cfg.agent.batch_size,
+                self.cfg.nstep,
+                n_workers=self.cfg.replay_buffer_num_workers,
             )
             self.expert_iter = iter(self.expert_loader)
 
@@ -113,15 +117,15 @@ class Workspace:
             self.cfg.n_learners = self.cfg.replay_buffer_size // self.cfg.n_samples
 
         if self.cfg.agent.name == "boosting" or self.cfg.agent.name == "dac":
-            #TODO: Make this compatible with Images....state vector for now
-            if self.cfg.agent.disc_type == 'sa':
+            # TODO: Make this compatible with Images....state vector for now
+            if self.cfg.agent.disc_type == "sa":
                 self.cfg.agent.feature_dim = obs_spec.shape[0] + n_action
-            elif self.cfg.agent.disc_type == 'ss':
+            elif self.cfg.agent.disc_type == "ss":
                 self.cfg.agent.feature_dim = 2 * obs_spec.shape[0]
-            elif self.cfg.agent.disc_type == 's':
+            elif self.cfg.agent.disc_type == "s":
                 self.cfg.agent.feature_dim = obs_spec.shape[0]
-            elif self.cfg.agent.disc_type == 'sas':
-                self.cfg.agent.feature_dim = 2* obs_spec.shape[0] + n_action
+            elif self.cfg.agent.disc_type == "sas":
+                self.cfg.agent.feature_dim = 2 * obs_spec.shape[0] + n_action
             else:
                 raise NotImplementedError("Discriminator Input not supported")
 
@@ -323,7 +327,8 @@ class Workspace:
                                 "train/episode_reward": episode_reward,
                                 "train/episode_length": episode_frame,
                                 "train/episode": self.global_episode,
-                                "train/global_step": self.global_step + self._sample_offset,
+                                "train/global_step": self.global_step
+                                + self._sample_offset,
                                 "train/global_frame": self.global_frame,
                             }
                         )
@@ -368,7 +373,7 @@ class Workspace:
                 # Add Learner to Boosting
                 self.agent.add_learner()
                 # Add Samples
-                self.collect_samples() # adds to smaple complexity
+                self.collect_samples()  # adds to smaple complexity
                 self.disc_buffer.get_weights()
                 # Update Disc
                 disc_metrics = self.agent.update_discriminator(
@@ -465,7 +470,7 @@ def main(cfg):
     project_name = "Ranking-IL"
     entity = "kaiwenw_rep_offline_rl"
     ts = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
-    #name = f"{ts}"
+    # name = f"{ts}"
     name = f"{ts}_{cfg.experiment}"
     snapshot = w.work_dir / "snapshot.pt"
     if snapshot.exists():
