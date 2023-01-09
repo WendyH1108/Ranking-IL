@@ -6,13 +6,13 @@ import hydra
 import numpy as np
 import torch
 from dm_env import specs
-
+import time
 import utils
 from logger import Logger
 from replay_buffer import ReplayWrapper, make_expert_replay_loader, ReplayBufferMemory
 from video import VideoRecorder
-
-from time import time
+from suite.dmc import FrameStackWrapper
+import time
 import wandb
 import warnings
 
@@ -22,8 +22,8 @@ warnings.filterwarnings("ignore", category=UserWarning)
 os.environ["MKL_SERVICE_FORCE_INTEL"] = "1"
 os.environ["MUJOCO_GL"] = "egl"
 os.environ["PYOPENGL_PLATFORM"] = ""
-os.environ['OMP_NUM_THREADS'] = '1'
-os.environ['MKL_NUM_THREADS'] = '1'
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
 torch.set_num_threads(1)
 torch.backends.cudnn.benchmark = True
 
@@ -40,6 +40,7 @@ class Workspace:
         self.device = torch.device(cfg.device)
         self.setup()
         self.agent = hydra.utils.instantiate(cfg.agent)
+        
         if cfg.load_checkpoint:
             chkpt = (
                 Path(
@@ -81,21 +82,33 @@ class Workspace:
         print(
             f"Initialized Environment\nTask: {self.cfg.suite.task}\nObs Shape: {self.cfg.algo.obs_shape}\nAction Dim: {n_action}"
         )
-
-        self.buffer = ReplayBufferMemory(
-            specs=self.train_env.specs(),
-            max_size=self.cfg.replay_buffer_size,
-            batch_size=self.cfg.batch_size,
-            nstep=self.cfg.nstep,  # only works for 1 for now.....
-            discount=self.cfg.discount,
-        )
+        if self.cfg.suite.obs_type == "pixels":
+            self.buffer = ReplayWrapper(
+                train_env = self.train_env,
+                data_specs = self.train_env.specs(),
+                work_dir = self.work_dir,
+                cfg = self.cfg
+            )
+            
+        else:
+            self.buffer = ReplayBufferMemory(
+                specs=self.train_env.specs(),
+                max_size=self.cfg.replay_buffer_size,
+                batch_size=self.cfg.batch_size,
+                nstep=self.cfg.nstep,  # only works for 1 for now.....
+                discount=self.cfg.discount,
+            )
 
         # TODO: set flags to turn on and off for pixels/state/rl vs il etc....
         # Map loader rather than iterable since we would want all
         if self.cfg.agent.name == "dac" or self.cfg.agent.name == "boosting":
             demos_path = self.cfg.expert_dir + self.cfg.suite.task + "_10.pkl"
             self.expert_loader = make_expert_replay_loader(
-                demos_path, self.cfg.num_demos, self.cfg.agent.batch_size, n_workers=self.cfg.replay_buffer_num_workers
+                demos_path,
+                self.cfg.num_demos,
+                self.cfg.agent.batch_size,
+                self.cfg.nstep,
+                n_workers=self.cfg.replay_buffer_num_workers,
             )
             self.expert_iter = iter(self.expert_loader)
 
@@ -113,15 +126,15 @@ class Workspace:
             self.cfg.n_learners = self.cfg.replay_buffer_size // self.cfg.n_samples
 
         if self.cfg.agent.name == "boosting" or self.cfg.agent.name == "dac":
-            #TODO: Make this compatible with Images....state vector for now
-            if self.cfg.agent.disc_type == 'sa':
+            # TODO: Make this compatible with Images....state vector for now
+            if self.cfg.agent.disc_type == "sa":
                 self.cfg.agent.feature_dim = obs_spec.shape[0] + n_action
-            elif self.cfg.agent.disc_type == 'ss':
+            elif self.cfg.agent.disc_type == "ss":
                 self.cfg.agent.feature_dim = 2 * obs_spec.shape[0]
-            elif self.cfg.agent.disc_type == 's':
+            elif self.cfg.agent.disc_type == "s":
                 self.cfg.agent.feature_dim = obs_spec.shape[0]
-            elif self.cfg.agent.disc_type == 'sas':
-                self.cfg.agent.feature_dim = 2* obs_spec.shape[0] + n_action
+            elif self.cfg.agent.disc_type == "sas":
+                self.cfg.agent.feature_dim = 2 * obs_spec.shape[0] + n_action
             else:
                 raise NotImplementedError("Discriminator Input not supported")
 
@@ -146,8 +159,11 @@ class Workspace:
     @property
     def replay_iter(self):
         if self._replay_iter is None:
-            # self._replay_iter = iter(self.buffer.replay_buffer)
-            self._replay_iter = iter(self.buffer)
+            if isinstance(self.buffer,ReplayWrapper):
+                self._replay_iter = iter(self.buffer.replay_buffer)
+            else:
+                # self._replay_iter = iter(self.buffer.replay_buffer)
+                self._replay_iter = iter(self.buffer)
         return self._replay_iter
 
     @property
@@ -296,10 +312,16 @@ class Workspace:
                     )
 
                 # Add to buffer
+                start_time=time.time()
                 for ts in time_steps:
                     self.buffer.add(ts)
-
+                    #/////
+                    # p = self.train_env._extract_pixels(ts)
+                    #/////
+                # print("total add to buffer time", (time.time() - start_time))
                 self._global_episode += 1
+                
+                start_time=time.time()
                 if metrics is not None:
                     # log stats
                     elapsed_time, total_time = self.timer.reset()
@@ -309,7 +331,7 @@ class Workspace:
                     ) as log:
                         log("fps", episode_frame / elapsed_time)
                         log("total_time", total_time)
-                        log("episode_reward", episode_reward)
+                        log("episode_return", episode_reward)
                         log("episode_length", episode_frame)
                         log("episode", self.global_episode)
                         log("step", self.global_step + self._sample_offset)
@@ -323,11 +345,12 @@ class Workspace:
                                 "train/episode_reward": episode_reward,
                                 "train/episode_length": episode_frame,
                                 "train/episode": self.global_episode,
-                                "train/global_step": self.global_step + self._sample_offset,
+                                "train/global_step": self.global_step
+                                + self._sample_offset,
                                 "train/global_frame": self.global_frame,
                             }
                         )
-
+                # print("total metrics logging time", (time.time() - start_time))
                 # reset env
                 time_step = self.train_env.reset()
                 time_steps = [time_step]
@@ -337,9 +360,8 @@ class Workspace:
                 # Save Snapshot
                 if self.cfg.suite.save_snapshot:
                     self.save_snapshot()
-
             # Eval
-            if self.global_step % self.cfg.suite.eval_every_steps == 0:
+            if  self.global_step % self.cfg.suite.eval_every_steps == 0:
                 eval_return, on_policy_data = self.eval()
                 # if eval_return > self.best_eval_return:
                 #     ret = int(eval_return)
@@ -368,7 +390,7 @@ class Workspace:
                 # Add Learner to Boosting
                 self.agent.add_learner()
                 # Add Samples
-                self.collect_samples() # adds to smaple complexity
+                self.collect_samples()  # adds to smaple complexity
                 self.disc_buffer.get_weights()
                 # Update Disc
                 disc_metrics = self.agent.update_discriminator(
@@ -394,7 +416,7 @@ class Workspace:
 
             # Update Agent
             if self.global_step >= self.cfg.suite.num_seed_steps:
-
+                start_time = time.time()
                 if self.cfg.agent.name == "dac":
                     metrics = self.agent.update(
                         self.eval_env,
@@ -410,7 +432,8 @@ class Workspace:
                     )
                 else:
                     metrics = self.agent.update(self.replay_iter, self.global_step)
-
+                # print("total update time", (time.time() - start_time))
+                # exit(0)
                 # Logging
                 metrics["eval/eval_return"] = eval_return
                 metrics["eval/custom_step"] = eval_counter
@@ -419,18 +442,19 @@ class Workspace:
                 if self.cfg.agent.name == "boosting":
                     metrics["eval/boosting_divergence"] = boosted_divergence
                     metrics["eval/boosting_return"] = boosted_eval_return
-
                 self.logger.log_metrics(metrics, self.global_frame, ty="train")
 
                 if self.cfg.wandb:
                     wandb.log(metrics)
-
+                # print("total logging time", (time.time() - start_time))
+                # exit(0)
             # Env Step
             time_step = self.train_env.step(action)
             time_steps.append(time_step)
             episode_reward += time_step.reward
             episode_step += 1
             self._global_step += 1
+
 
     def save_snapshot(self, name="snapshot.pt"):
         snapshot = self.work_dir / name
@@ -462,10 +486,10 @@ class Workspace:
 @hydra.main(version_base=None, config_path="./cfgs", config_name="config")
 def main(cfg):
     w = Workspace(cfg)
-    project_name = "Ranking-IL"
+    project_name = "Ranking-IL-Cheetah"
     entity = "kaiwenw_rep_offline_rl"
     ts = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
-    #name = f"{ts}"
+    # name = f"{ts}"
     name = f"{ts}_{cfg.experiment}"
     snapshot = w.work_dir / "snapshot.pt"
     if snapshot.exists():

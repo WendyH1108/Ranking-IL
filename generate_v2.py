@@ -14,8 +14,10 @@ from collections import defaultdict
 
 import yaml
 
-snapshots={"cheetah_run":"/home/yh374/Ranking-IL/exp/2022.09.19/1517_cheetah_ddpg/0",
-"walker_walk": "/home/yh374/Ranking-IL/exp/2022.09.16/1535_test/0"}
+snapshots={"cheetah_run": "/home/yh374/Ranking-IL/exp_local/2022.11.29/ddpg_cheetah_run",
+"walker_walk": "/home/yh374/Ranking-IL/exp_local/2022.11.29/ddpg_walker_walk2",
+"quadruped_walk": "/home/yh374/Ranking-IL/exp_local/2022.11.29/ddpg_quadruped_walk",
+"humanoid_stand": "/home/yh374/Ranking-IL/exp/2022.11.27/1406_humanoid_stand/0"}
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 torch.backends.cudnn.benchmark = True
@@ -75,10 +77,10 @@ def main(cfg):
         while not time_step.last():
 
             states.append(time_step.observation)
-
+                        
             with torch.no_grad(), utils.eval_mode(agent.policy):
                 action = agent.act(
-                    time_step.observation, 1000000, eval_mode=True
+                    time_step.observation["state"].astype(np.float32), 1000000, eval_mode=True
                 )
             time_step = env.step(action)
 
@@ -102,7 +104,7 @@ def main(cfg):
         eval_returns_list.append(eval_return)
 
         print(f"Eval Return: {eval_return} | Traj Len: {len(states)}")
-
+    video.save(f"{cfg.suite.task}.mp4")
     rew = np.array(eval_returns_list)
     metadata = {
         "entire_db": {

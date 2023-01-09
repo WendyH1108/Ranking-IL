@@ -4,3 +4,6 @@ exp_local
 multirun
 .DS_Store
 wandb
+expert_ddpg_image
+expert_ddpg
+expert_sac

@@ -73,7 +73,6 @@ class DoubleQCritic(nn.Module):
 class DeterministicActor(nn.Module):
     def __init__(self, obs_dim, action_dim, feature_dim, hidden_dims, spectral_norms):
         super().__init__()
-
         self.trunk = nn.Sequential(
             nn.Linear(obs_dim, feature_dim), nn.LayerNorm(feature_dim), nn.Tanh()
         )

@@ -29,15 +29,18 @@ class BoostingAgent(Agent):
         disc_type,
         disc_update_iter,
         n_learners,
+        discount,
+        divergence,
     ):
 
         super().__init__(name, task, device, algo)
         assert disc_type == "s" or disc_type == "ss" or disc_type == "sa"
         self.disc_type = disc_type  # r(s), r(s, s'), r(s, a)
-
+        self.algo = algo
         # demos_path = expert_dir + task + "/expert_demos.pkl"
-
+        self.divergence = divergence
         self.representation = representation
+
         if self.representation == "rl_encoder":
             self.discriminator = Discriminator(feature_dim, disc_hidden_dim).to(device)
         elif self.representation == "discriminator":
@@ -58,6 +61,7 @@ class BoostingAgent(Agent):
         self.device = device
         self.batch_size = batch_size
         self.learners = deque(maxlen=n_learners)
+        self.discount = discount
 
     def __repr__(self):
         return "boosting"
@@ -84,16 +88,21 @@ class BoostingAgent(Agent):
         self.learners.append(self.policy.actor.state_dict())
 
     def sample_learner(self, weights):
-        """ Returns a policy from ensemble of policies """
+        """Returns a policy from ensemble of policies"""
         if len(self.learners) == 0:
             return
         sampled_weights = np.random.choice(self.learners, p=weights)
+        
         self.policy.eval_actor.load_state_dict(sampled_weights)
-    
+
     @torch.no_grad()
     def boosted_act(self, obs):
         obs = torch.as_tensor(obs, device=self.device).unsqueeze(0)
-        dist = self.policy.eval_actor(obs)
+        if self.algo.name == "ddpg":
+            stddev = utils.schedule(self.policy.stddev_schedule, self.policy.internal_step)
+            dist = self.policy.eval_actor(obs, stddev)
+        else:
+            dist = self.policy.eval_actor(obs)
         action = dist.mean
         return action.cpu().numpy()[0]
 
@@ -123,16 +132,25 @@ class BoostingAgent(Agent):
                 (expert_data, policy_data), self.device
             )
             disc_input = torch.cat([expert_data, policy_data], dim=0)
-            # dac_loss = torch.mean(
-            #     self.discriminator(expert_data, encode=False)
-            # ) - torch.mean(self.discriminator(policy_data, encode=False))
             disc_output = self.discriminator(disc_input, encode=False)
-            ones = torch.ones(batch_size, device=self.device)
-            zeros = torch.zeros(batch_size, device=self.device)
-            disc_label = torch.cat([ones, zeros]).unsqueeze(dim=1)
-            dac_loss = F.binary_cross_entropy_with_logits(
-                disc_output, disc_label, reduction="sum")
-            dac_loss /= batch_size
+
+            if self.divergence == "js":
+                ones = torch.ones(batch_size, device=self.device)
+                zeros = torch.zeros(batch_size, device=self.device)
+                disc_label = torch.cat([ones, zeros]).unsqueeze(dim=1)
+                # add constraint here
+                dac_loss = F.binary_cross_entropy_with_logits(
+                    disc_output, disc_label, reduction="sum"
+                )
+                dac_loss /= batch_size
+            elif self.divergence == "rkl":
+                disc_expert, disc_policy = torch.split(disc_output, batch_size, dim=0)
+                dac_loss = torch.mean(torch.exp(-disc_expert) + disc_policy)
+            elif self.divergence == "wass":
+                disc_expert, disc_policy = torch.split(disc_output, batch_size, dim=0)
+                dac_loss = torch.mean(disc_policy - disc_expert)
+
+            metrics["train/disc_loss"] = dac_loss.mean().item()
 
             grad_pen = utils.compute_gradient_penalty(
                 self.discriminator, expert_data, policy_data
@@ -144,9 +162,6 @@ class BoostingAgent(Agent):
             dac_loss.backward()
             grad_pen.backward()
             self.discriminator_opt.step()
-
-            # Logging
-            metrics["train/disc_loss"] = dac_loss.mean().item()
 
         return metrics
 
@@ -174,27 +189,50 @@ class BoostingAgent(Agent):
 
         replay_batch = next(replay_iter)
         expert_batch = next(expert_iter)
-        
+
+        # For the actions: TODO: fix
         expert_batch[1] = torch.squeeze(expert_batch[1], dim=1)
-        
+
         replay_batch = utils.to_torch(replay_batch, self.device)
         expert_batch = utils.to_torch(expert_batch, self.device)
-        
+
         state = torch.cat([replay_batch[0], expert_batch[0]], dim=0)
         action = torch.cat([replay_batch[1], expert_batch[1]], dim=0)
         next_state = torch.cat([replay_batch[-1], expert_batch[2]], dim=0)
-        discount = replay_batch[3].tile((2,1))
-        
+
+        discount = replay_batch[3].tile((2, 1))
+
         batch = [state, action, None, discount, next_state]
 
-        
         # FOR NOW 50/50
         # TODO: mix proportion control
         # batch = utils.to_torch(torch.cat([replay_batch, expert_batch], dim=0), self.device)
 
         # Update Reward
         # TODO: Handle different disc input types
-        batch[2] = self.get_rewards(torch.cat([batch[0], batch[1]], dim=1))
+        rewards = self.get_rewards(torch.cat([batch[0], batch[1]], dim=1))
+
+        # Nstep calculation
+        if self.policy.nstep > 1:
+            n_int = self.policy.nstep - 1
+
+            int_obs = replay_batch[-2 * n_int : -n_int]
+            int_expert_obs = expert_batch[-2 * n_int : -n_int]
+
+            int_act = replay_batch[-n_int:]
+            int_expert_act = expert_batch[-n_int:]
+
+            int_batch = []
+            for o, a, eo, ea in zip(int_obs, int_act, int_expert_obs, int_expert_act):
+                obs = torch.cat([o, eo], dim=0)
+                act = torch.cat([a, ea], dim=0)
+                int_batch.append(torch.cat([obs, act], dim=1))
+
+            for b in int_batch:
+                int_r = self.get_rewards(b)
+                rewards += self.discount * int_r
+
+        batch[2] = rewards
 
         metrics = self.policy.update(batch, step)
 

@@ -1,0 +1,16 @@
+#!/bin/bash
+#SBATCH -J boosting
+#SBATCH -o /home/yh374/slurm/logs/%j.out
+#SBATCH -e /home/yh374/slurm/logs/%j.err
+#SBATCH -N 1
+#SBATCH -n 10
+#SBATCH --mem=100G
+#SBATCH -t 144:00:00
+#SBATCH --partition=sun
+#SBATCH --gres=gpu:2080ti:1
+
+source /share/apps/anaconda3/2020.11/etc/profile.d/conda.sh
+conda activate rankingIL
+cd /home/yh374/Ranking-IL
+python train.py experiment=ddpg_cheetah_pixel suite.task=cheetah_run suite.obs_type=pixels replay_buffer_size=1000000 agent=rl algo=ddpg suite=dmc save_video=False save_train_video=False buffer_local=True num_demos=10 algo.use_tb=True
+python train.py experiment=ddpg_cheetah_pixel suite.task=cheetah_run suite.obs_type=pixels replay_buffer_size=1000000 agent=dac algo=ddpg suite=dmc save_video=False save_train_video=False buffer_local=True num_demos=10 algo.use_tb=True expert_dir=/home/yh374/Ranking-IL/expert_sac/

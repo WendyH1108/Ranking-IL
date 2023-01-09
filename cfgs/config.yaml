@@ -10,7 +10,7 @@ experiment: boosting
 
 # General
 seed: 1
-device: cpu
+device: cuda
 save_video: true
 save_train_video: false
 use_tb: false
@@ -21,8 +21,8 @@ num_demos: 10
 
 # replay buffer
 replay_buffer_size: ${suite.num_train_steps}
-#replay_buffer_num_workers: 6
 replay_buffer_num_workers: 2
+# replay_buffer_num_workers: 2
 nstep: ${algo.nstep}
 batch_size: ${algo.batch_size}
 discount: ${suite.discount}
@@ -31,7 +31,7 @@ buffer_local: true
 
 
 # FOR now
-return_one_step: true
+return_one_step: false
 idm_iter: 1
 mlp_dense: false
 epochs: 100
@@ -46,7 +46,7 @@ uncertainty_type: var_max
 
 # BOOSTING
 n_sample_episodes: 2
-reset_policy: true
+reset_policy: false
 disc_iter: 50
 policy_iter: 1000
 eta: 0.7

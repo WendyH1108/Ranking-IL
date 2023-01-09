@@ -8,7 +8,7 @@ discount: 0.99
 # train settings
 #num_train_steps: 1000000
 num_train_steps: 10000000
-num_seed_steps: 10000 # DAC
+num_seed_steps: 1000 # DAC
 
 # eval
 eval_every_steps: ${policy_iter}

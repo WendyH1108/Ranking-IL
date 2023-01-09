@@ -79,8 +79,14 @@ class FrameStackWrapper(dm_env.Environment):
         if len(pixels_shape) == 4:
             pixels_shape = pixels_shape[1:]
         self._obs_spec = OrderedDict()
+        # print("physics shape", self._env.physics.get_state().shape)
+        self.states = np.array([])
+        physics = self._env._task.get_observation(self._env._physics)
+        for key in physics.keys():
+            self.states = np.append(self.states, physics[key])
+        count = sum(len(i) for i in self._env._task.get_observation(self._env._physics).values())
         self._obs_spec['state'] = specs.Array(
-            shape=self._env.physics.get_state().shape,
+            shape=(count,),
             dtype=np.float32,
             name='state')
 
@@ -105,13 +111,20 @@ class FrameStackWrapper(dm_env.Environment):
                                                       minimum=0,
                                                       maximum=255,
                                                       name='observation')
-
+    def append_states(self):
+        states = np.array([])
+        physics = self._env._task.get_observation(self._env._physics)
+        for key in physics.keys():
+            states = np.append(states, physics[key])
+        return states
+    
     def _transform_observation(self, time_step):
         assert len(self._frames) == self._num_frames
         #obs = np.concatenate(list(self._frames), axis=0)
         #return time_step._replace(observation=obs)
         obs = OrderedDict()
-        obs['state'] = self._env.physics.get_state().copy()
+        # obs['state'] = self._env.physics.get_state().copy()
+        obs['state'] = self.append_states()
         obs['pixels'] = np.concatenate(list(self._frames), axis=0)
         features = []
         for key, value in time_step.observation.items():
@@ -198,7 +211,16 @@ class ExtendedTimeStepWrapper(dm_env.Environment):
                                 action=action,
                                 reward=time_step.reward or 0.0,
                                 discount=time_step.discount or 1.0)
-
+    def specs(self):
+        obs_spec = self._env.observation_spec()["pixels"]
+        action_spec = self._env.action_spec()
+        next_obs_spec = specs.Array(obs_spec.shape, obs_spec.dtype,
+                                    'next_observation')
+        reward_spec = specs.Array((1,), action_spec.dtype, 'reward')
+        discount_spec = specs.Array((1,), action_spec.dtype, 'discount')
+        return (obs_spec, action_spec, reward_spec, discount_spec,
+                next_obs_spec)
+        
     def observation_spec(self):
         return self._env.observation_spec()
 
@@ -207,6 +229,7 @@ class ExtendedTimeStepWrapper(dm_env.Environment):
 
     def __getattr__(self, name):
         return getattr(self._env, name)
+    
 
 
 def make(name, frame_stack, action_repeat, seed):
