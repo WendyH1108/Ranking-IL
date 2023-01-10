@@ -152,10 +152,10 @@ class SACAgent:
         return metrics
 
     def reset_noise(self):
-        self.log_alpha = torch.tensor(self.init_temperature, dtype=torch.float64).to(
-            self.device
-        )
-        self.log_alpha.requires_grad = True
+        #self.log_alpha = torch.tensor(self.init_temperature, dtype=torch.float64).to(
+        #    self.device
+        #)
+        #self.log_alpha.requires_grad = True
         self.alpha_opt = torch.optim.Adam([self.log_alpha], lr=self.lr)
 
     def reinit_policy(self):

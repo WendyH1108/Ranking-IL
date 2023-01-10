@@ -79,6 +79,20 @@ class BoostingAgent(Agent):
             d = self.discriminator(obs)
         return d.flatten().detach().reshape(-1, 1)
 
+    def compute_offline_rewards(self, time_steps):
+        #Preprocess observations and demos
+        observations = np.stack([time_step.observation for time_step in time_steps[:-1]], 0)
+        actions = np.stack([time_step.action for time_step in time_steps[1:]], 0)
+
+        disc_in = np.concatenate([observations, actions], axis=1)
+        disc_in = torch.tensor(disc_in).to(self.device)
+        rewards = self.get_rewards(disc_in)
+        #Preprocess time steps
+        # JONATHAN: fixed handling of dummy time_step 
+        for i in range(1, len(time_steps)):
+            time_steps[i] = time_steps[i]._replace(reward=rewards[i-1, 0])
+        return time_steps
+
     def reset_policy(self, reinit_policy=False):
         self.policy.reset_noise()
         if reinit_policy:
@@ -189,15 +203,21 @@ class BoostingAgent(Agent):
         expert_batch[1] = torch.squeeze(expert_batch[1], dim=1)
 
         replay_batch = utils.to_torch(replay_batch, self.device)
+
+        # TODO: control expert batch
         expert_batch = utils.to_torch(expert_batch, self.device)
 
-        state = torch.cat([replay_batch[0], expert_batch[0]], dim=0)
-        action = torch.cat([replay_batch[1], expert_batch[1]], dim=0)
-        next_state = torch.cat([replay_batch[-1], expert_batch[2]], dim=0)
+        #state = torch.cat([replay_batch[0], expert_batch[0]], dim=0)
+        #action = torch.cat([replay_batch[1], expert_batch[1]], dim=0)
+        #next_state = torch.cat([replay_batch[4], expert_batch[2]], dim=0)
 
-        discount = replay_batch[3].tile((2, 1))
+        state, action, next_state = replay_batch[0], replay_batch[1], replay_batch[4]
 
-        batch = [state, action, None, discount, next_state]
+        #discount = replay_batch[3].tile((2, 1))
+        discount = replay_batch[3]
+
+        # batch = [state, action, None, discount, next_state]
+        batch = [state, action, replay_batch[2], discount, next_state]
 
         # FOR NOW 50/50
         # TODO: mix proportion control
@@ -205,29 +225,32 @@ class BoostingAgent(Agent):
 
         # Update Reward
         # TODO: Handle different disc input types
-        rewards = self.get_rewards(torch.cat([batch[0], batch[1]], dim=1))
+        #rewards = self.get_rewards(torch.cat([batch[0], batch[1]], dim=1))
 
         # Nstep calculation
-        if self.policy.nstep > 1:
-            n_int = self.policy.nstep - 1
+        #if self.policy.nstep > 1:
+        #    n_int = self.policy.nstep - 1
 
-            int_obs = replay_batch[-2 * n_int : -n_int]
-            int_expert_obs = expert_batch[-2 * n_int : -n_int]
+        #    int_obs = replay_batch[-2 * n_int : -n_int]
+        #    int_expert_obs = expert_batch[-2 * n_int : -n_int]
 
-            int_act = replay_batch[-n_int:]
-            int_expert_act = expert_batch[-n_int:]
+        #    int_act = replay_batch[-n_int:]
+        #    int_expert_act = expert_batch[-n_int:]
 
-            int_batch = []
-            for o, a, eo, ea in zip(int_obs, int_act, int_expert_obs, int_expert_act):
-                obs = torch.cat([o, eo], dim=0)
-                act = torch.cat([a, ea], dim=0)
-                int_batch.append(torch.cat([obs, act], dim=1))
+        #    int_batch = []
+        #    for o, a, eo, ea in zip(int_obs, int_act, int_expert_obs, int_expert_act):
+        #        ea = torch.squeeze(ea, dim=1)
+        #        obs = torch.cat([o, eo], dim=0)
+        #        act = torch.cat([a, ea], dim=0)
+        #        int_batch.append(torch.cat([obs, act], dim=1))
+        #    #for o, a in zip(int_obs, int_act):
+        #    #    int_batch.append(torch.cat([o, a], dim=1))
 
-            for b in int_batch:
-                int_r = self.get_rewards(b)
-                rewards += self.discount * int_r
+        #    for b in int_batch:
+        #        int_r = self.get_rewards(b)
+        #        rewards += self.discount * int_r
 
-        batch[2] = rewards
+        #batch[2] = rewards
 
         metrics = self.policy.update(batch, step)
 

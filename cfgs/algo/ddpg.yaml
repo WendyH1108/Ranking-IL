@@ -5,7 +5,8 @@ obs_type: ${suite.obs_type}
 obs_shape: ??? # to be specified later
 action_dim: ??? # to be specified later
 device: ${device}
-lr: 3e-4
+#lr: 3e-4
+lr: 8e-5
 batch_size: 256
 nstep: 3
 #critic_target_tau: 0.01
@@ -14,13 +15,15 @@ update_every_steps: 2
 use_tb: ${use_tb}
 num_expl_steps: 5000
 critic_use_ln: false
-#critic_hidden_dims: [1024, 1024] #[512, 512, 256]
-critic_hidden_dims: [256, 256] #[512, 512, 256]
+critic_hidden_dims: [1024, 1024] #[512, 512, 256]
+#critic_hidden_dims: [256, 256] #[512, 512, 256]
 critic_spectral_norms: [false, false]
 actor_use_ln: false
-#actor_hidden_dims: [1024, 1024] #[256, 256, 256]
-actor_hidden_dims: [256, 256] #[256, 256, 256]
+actor_hidden_dims: [1024, 1024] #[256, 256, 256]
+#actor_hidden_dims: [256, 256] #[256, 256, 256]
 actor_spectral_norms: [false, false]
-feature_dim: 50
-stddev_schedule: 'linear(1.0,0.1,100000)'
+#feature_dim: 50
+feature_dim: 100
+#stddev_schedule: 'linear(1.0,0.1,100000)'
+stddev_schedule: 'linear(1.0,0.1,2000000)'
 stddev_clip: 0.3

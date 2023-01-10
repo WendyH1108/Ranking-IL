@@ -104,6 +104,8 @@ class Workspace:
             self.expert_iter = iter(self.expert_loader)
 
         if self.cfg.agent.name == "boosting":
+            # TODO: FIX
+            self.cfg.eta = None
             self.disc_buffer = ReplayBufferMemory(
                 specs=self.train_env.specs(),
                 max_size=self.cfg.replay_buffer_size,
@@ -166,7 +168,8 @@ class Workspace:
         samples = 0
         while samples < self.cfg.n_samples:
             time_step = self.eval_env.reset()
-            self.disc_buffer.add(time_step)
+            time_steps = [time_step]
+            # self.disc_buffer.add(time_step)
             samples += 1
 
             while not time_step.last():
@@ -175,8 +178,15 @@ class Workspace:
                         time_step.observation, self.global_step, eval_mode=False
                     )
                 time_step = self.eval_env.step(action)
-                self.disc_buffer.add(time_step)
+                time_steps.append(time_step)
+                # self.disc_buffer.add(time_step)
                 samples += 1
+
+            # NOTE: this is using Discriminator incrementally
+            time_steps = self.agent.compute_offline_rewards(time_steps)
+            for ts in time_steps:
+                self.disc_buffer.add(ts)
+
         self._sample_offset += self.cfg.n_samples
 
     def boosted_eval(self):
@@ -313,7 +323,7 @@ class Workspace:
                     ) as log:
                         log("fps", episode_frame / elapsed_time)
                         log("total_time", total_time)
-                        log("episode_reward", episode_reward)
+                        log("episode_return", episode_reward)
                         log("episode_length", episode_frame)
                         log("episode", self.global_episode)
                         log("step", self.global_step + self._sample_offset)
@@ -467,7 +477,8 @@ class Workspace:
 @hydra.main(version_base=None, config_path="./cfgs", config_name="config")
 def main(cfg):
     w = Workspace(cfg)
-    project_name = "Ranking-IL"
+    #project_name = "Ranking-IL"
+    project_name = "Ranking-IL-ablations"
     entity = "kaiwenw_rep_offline_rl"
     ts = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
     # name = f"{ts}"

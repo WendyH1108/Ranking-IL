@@ -86,7 +86,8 @@ class DACAgent(Agent):
 
                 # # Survival Bias (i.e. GAIL/DAC reward)
                 #rewards = -(1 - s).log()
-                rewards = d # AIRL
+                #rewards = d # AIRL
+                rewards = s.log()
                 #else:
                 #    reward_list = []
                 #    for dis_state in self.discriminator_list:
@@ -314,9 +315,14 @@ class DACAgent(Agent):
         batch = utils.to_torch(batch, self.device)
 
         # Discriminator Update
-        metrics.update(
-            self.update_discriminator(batch, expert_loader, expert_iter, step)
-        )
+        if step % 10000 == 0:
+            for _ in range(100):
+                batch = next(replay_iter)
+                batch = utils.to_torch(batch, self.device)
+                self.update_discriminator(batch, expert_loader, expert_iter, step)
+        #metrics.update(
+        #    self.update_discriminator(batch, expert_loader, expert_iter, step)
+        #)
 
         # Policy Update
         metrics.update(self.policy.update(batch, step))
