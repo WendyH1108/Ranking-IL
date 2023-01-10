@@ -66,6 +66,8 @@ def main(cfg):
     for i in range(cfg.num_gen_episodes):
         eval_return = 0
         states = list()
+        pixels = list()
+        next_pixels = list()
         actions = list()
         next_states = list()
         rewards = list()
@@ -76,15 +78,16 @@ def main(cfg):
         video.init(env, enabled=True)
         while not time_step.last():
 
-            states.append(time_step.observation)
-                        
+            states.append(time_step.observation["state"])
+            pixels.append(time_step.observation["pixels"])
             with torch.no_grad(), utils.eval_mode(agent.policy):
                 action = agent.act(
                     time_step.observation["state"].astype(np.float32), 1000000, eval_mode=True
                 )
             time_step = env.step(action)
 
-            next_states.append(time_step.observation)
+            next_states.append(time_step.observation["state"])
+            next_pixels.append(time_step.observation["pixels"])
             rewards.append(time_step.reward)
             actions.append(
                 np.array([time_step.action])
@@ -94,11 +97,13 @@ def main(cfg):
             video.record(env)
             eval_return += time_step.reward
 
-        traj["states"].append(tuple(states))
-        traj["actions"].append(tuple(actions))
-        traj["next_states"].append(tuple(next_states))
-        traj["rewards"].append(tuple(rewards))
-        traj["dones"].append(tuple(dones))
+        traj["states"].append(np.stack(states, 0))
+        traj["pixels"].append(np.stack(pixels, 0))
+        traj["next_pixels"].append(np.stack(next_pixels, 0))
+        traj["actions"].append(np.stack(actions, 0))
+        traj["next_states"].append(np.stack(next_states, 0))
+        traj["rewards"].append(np.stack(rewards, 0))
+        traj["dones"].append(np.stack(dones, 0))
         traj["lengths"].append(len(states))
 
         eval_returns_list.append(eval_return)
