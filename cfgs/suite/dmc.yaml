@@ -1,7 +1,8 @@
 # @package suite
 suite: dmc
 task: walker_walk
-obs_type: states # {states, pixels}
+#obs_type: states # {states, pixels}
+obs_type: pixels # {states, pixels}
 
 discount: 0.99
 

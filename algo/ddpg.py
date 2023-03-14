@@ -194,7 +194,8 @@ class DDPGAgent:
         # if step % self.update_every_steps != 0:
         #     return metrics
         start_time = time.time()
-        obs, action, reward, discount, next_obs = utils.to_torch(batch, self.device)
+        #obs, action, reward, discount, next_obs = utils.to_torch(batch, self.device)
+        obs, action, reward, discount, next_obs = batch
         # print("batch time", time.time()-start_time)
         
         start_time = time.time()
