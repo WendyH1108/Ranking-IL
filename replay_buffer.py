@@ -399,6 +399,7 @@ class ReplayBufferMemory:
     def __init__(
         self, specs, max_size, batch_size, nstep, discount, eta=None, n_samples=None
     ):
+        print(f"specs={specs}")
         self._specs = specs
         self._max_size = max_size
         self._batch_size = batch_size
@@ -408,7 +409,6 @@ class ReplayBufferMemory:
         self._full = False
         self._items = dict()
         self._queue = deque([], maxlen=nstep + 1)
-
         for spec in specs:
             self._items[spec.name] = np.empty((max_size, *spec.shape), dtype=spec.dtype)
 
@@ -416,11 +416,11 @@ class ReplayBufferMemory:
         if nstep > 1:
             for i in range(1, nstep):
                 self._items[f"obs_{i}"] = np.empty(
-                    (max_size, *specs["observation"].shape),
-                    dtype=specs["observation"].dtype,
+                    (max_size, *specs[0].shape),
+                    dtype=specs[0].dtype,
                 )
                 self._items[f"act_{i}"] = np.empty(
-                    (max_size, *specs["action"].shape), dtype=specs["action"].dtype
+                    (max_size, *specs[1].shape), dtype=specs[1].dtype
                 )
 
         self._eta = eta
@@ -505,10 +505,10 @@ class ReplayBufferMemory:
             if self._nstep > 1:
                 for i in range(1, self._nstep):
                     np.copyto(
-                        self._item[f"obs_{i}"][self._idx], self.queue[i].observation
+                        self._items[f"obs_{i}"][self._idx], self._queue[i].observation
                     )
                     np.copyto(
-                        self._item[f"act_{i}"][self._idx], self.queue[i + 1].action
+                        self._items[f"act_{i}"][self._idx], self._queue[i + 1].action
                     )
 
             reward, discount = 0.0, 1.0
