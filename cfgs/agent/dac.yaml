@@ -1,0 +1,15 @@
+# @package agent
+_target_: agent.dac.DACAgent
+name: dac
+device: ${device}
+algo: ${algo}
+batch_size: ${algo.batch_size}
+task: ${suite.task}
+expert_dir: /home/jdc396/Ranking-IL/expert_v2/
+feature_dim: ???
+reward_mode: offline_imitation
+representation: rl_encoder
+disc_hidden_dim: 64
+disc_type: ${disc_type}
+num_demos: ${num_demos}
+divergence: rkl

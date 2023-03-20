@@ -1,0 +1,38 @@
+# @package suite
+suite: atari
+task: breakout
+obs_type: pixels
+noop_max: 30
+
+discount: 0.99
+# train settings
+# 5e7 rather than 2e7
+num_train_steps: 20000000
+# 50000 for qrdqn
+num_seed_steps: 200000  # as in Rainbow
+# eval
+eval_every_steps: 250000
+num_eval_episodes: 5
+term_death: false
+
+save_snapshot: true
+frame_stack: 4
+action_repeat: 4
+
+task_make_fn_train:
+  _target_: suite.atari.make
+  name: ${suite.task}
+  frame_stack: ${suite.frame_stack}
+  action_repeat: ${suite.action_repeat}
+  seed: ${seed}
+  term_death: ${suite.term_death}
+  noop_max: ${suite.noop_max}
+
+task_make_fn_eval:
+  _target_: suite.atari.make
+  name: ${suite.task}
+  frame_stack: ${suite.frame_stack}
+  action_repeat: ${suite.action_repeat}
+  seed: ${seed}
+  term_death: false
+  noop_max: ${suite.noop_max}

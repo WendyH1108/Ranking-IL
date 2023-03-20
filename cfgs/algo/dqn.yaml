@@ -1,0 +1,31 @@
+# @package algo
+_target_: algo.dqn.DQNAgent
+#_target_: algo.dqn_test.DQNAgent
+#obs_dim: ??? # to be specified later
+obs_shape: ??? # to be specified later
+num_actions: ??? # to be specified later
+batch_size: 64
+obs_type: ${suite.obs_type}
+device: ${device}
+critic_target_tau: 1.0
+critic_target_update_every_steps: 8000
+train_eps_min: 0.01
+#train_eps_decay_steps: 250000
+train_eps_decay_steps: 1000000
+eval_eps: 0.001
+update_every_steps: 4
+hidden_dim: 512
+use_tb: ${use_tb}
+lr: 0.0000625 # 1e-4
+#lr: 0.00025
+adam_eps: 0.00015
+max_grad_norm: 10.0
+clip_reward: true
+nstep: 3
+feature_dim: 50
+trunk_type: id
+task: ${suite.task}
+bc_lam: 0.0
+use_idm: true
+idm_lr: 0.003
+

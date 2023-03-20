@@ -1,0 +1,12 @@
+# @package agent
+_target_: agent.gail.GAILAgent
+name: gail
+device: ${device}
+algo: ${algo}
+feature_dim: 50
+reward_mode: stored
+representation: rl_encoder
+disc_hidden_dim: 1024
+inverse_hidden_dims: [1024, 1024]
+inverse_spectral_norms: [false, false]
+task: ${suite.task}

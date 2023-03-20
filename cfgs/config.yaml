@@ -1,0 +1,77 @@
+defaults:
+  - _self_
+  - algo: sac
+  - agent: boosting
+  - suite: dmc
+  #- override hydra/launcher: submitit_local
+
+# Experiment name
+experiment: boosting
+
+# General
+seed: 1
+device: cuda
+save_video: true
+save_train_video: false
+use_tb: false
+use_amp: false
+wandb: true
+expert_dir: /home/yh374/Ranking-IL/expert_v2/
+num_demos: 10
+
+# replay buffer
+replay_buffer_size: ${suite.num_train_steps}
+replay_buffer_num_workers: 10
+# replay_buffer_num_workers: 2
+nstep: ${algo.nstep}
+batch_size: ${algo.batch_size}
+discount: ${suite.discount}
+# buffer: old
+buffer_local: true
+
+
+# FOR now
+return_one_step: false
+idm_iter: 1
+mlp_dense: false
+epochs: 100
+eval_freq: 2
+separate_enc: false
+ensemble_size: 5
+prior: true
+bootstrap: true
+ensemble_encoder: false
+uncertainty_type: var_max
+
+
+# BOOSTING
+n_sample_episodes: 2
+reset_policy: false
+disc_iter: 50
+policy_iter: 1000
+eta: 0.7
+n_samples: 1000
+n_learners: ???
+reinit_policy: false
+
+
+load_checkpoint: false
+checkpoint_path: ./exp/2022.07.05/132235_collect_checkpoints/0/60_snapshot.pt
+
+hydra:
+  run:
+    dir: ./exp_local/${now:%Y.%m.%d}/${now:%H%M%S}_${agent.name}_${hydra.job.override_dirname}
+  sweep:
+    dir: ./exp/${now:%Y.%m.%d}/${now:%H%M}_${experiment}
+    subdir: ${hydra.job.num}
+  # launcher:
+  #   timeout_min: 4300
+  #   cpus_per_task: 10
+  #   gpus_per_node: 1
+  #   tasks_per_node: 1
+  #   mem_gb: 100
+  #   nodes: 1
+    # submitit_folder: ./exp/${now:%Y.%m.%d}/${now:%H%M%S}_${experiment}/.slurm
+  job:
+    chdir: true # previous behavior
+    name: ${experiment}

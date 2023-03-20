@@ -1,0 +1,31 @@
+defaults:
+  - _self_
+  - algo: ddpg
+  - agent: rl
+  - suite: dmc
+  - override hydra/launcher: submitit_local
+
+seed: 1
+device: cuda
+save_video: true
+
+experiment: exp
+
+# Generation
+save_generation_dir: /home/yh374/Ranking-IL/expert_ddpg_image
+num_gen_episodes: 10
+
+hydra:
+  run:
+    dir: ./exp_local/${now:%Y.%m.%d}/${now:%H%M%S}_${suite.task}_${hydra.job.override_dirname}
+  sweep:
+    dir: ./exp/${now:%Y.%m.%d}/${now:%H%M}_${experiment}
+    subdir: ${hydra.job.num}
+  launcher:
+    timeout_min: 4300
+    cpus_per_task: 10
+    gpus_per_node: 1
+    tasks_per_node: 1
+    mem_gb: 160
+    nodes: 1
+    submitit_folder: ./exp/${now:%Y.%m.%d}/${now:%H%M%S}_${experiment}/.slurm
